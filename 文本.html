@@ -11,7 +11,9 @@
     <div style="width: 100px;height: 30px;border: 2px solid black;border-radius:10px;text-align:center;line-height:30px;position: fixed;bottom: 40px; right:0px;" id="fs" onclick="fsxx()">发送消息</div>
     <hr>
     <div id="lk"></div>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
+        const sgk=supabase.createClient("https://tyznbeynnxkweewgnour.supabase.co","sb_publishable_g0fn9M0IqZpVocj76y0rPw_IDKxkH2C")
         function fsxx() {
             let sr=document.getElementById("sr"), lk=document.getElementById("lk"), mz=document.getElementById("mz").value.trim();
             let sy=document.createElement("div"), st=sr.value.trim();
@@ -21,6 +23,7 @@
             sy.style.borderRadius="10px"
             sy.style.wordBreak = "break-all"
             sy.textContent=mz+"："+st
+            //sgk.from('posts').insert([{username:mz;content:st;}])
             if (st&&mz){
                 lk.appendChild(sy)
             }else{
