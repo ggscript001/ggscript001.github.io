@@ -13,15 +13,15 @@
     <div id="lk"></div>
     <script>
         function fsxx() {
-            let sr=document.getElementById("sr").value.trim(), lk=document.getElementById("lk"), mz=document.getElementById("mz").value.trim();
-            let sy=document.createElement("div")
+            let sr=document.getElementById("sr"), lk=document.getElementById("lk"), mz=document.getElementById("mz").value.trim();
+            let sy=document.createElement("div"), st=sr.value.trim();
             sy.style.width="280px"
             sy.style.height="auto"
             sy.style.border="2px solid black"
             sy.style.borderRadius="10px"
             sy.style.wordBreak = "break-all"
-            sy.textContent=mz+"："+sr
-            if (sr||mz){
+            sy.textContent=mz+"："+st
+            if (st&&mz){
                 lk.appendChild(sy)
             }else{
                 console.warn("禁止名字或输入内容空白")
