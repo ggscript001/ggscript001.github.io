@@ -7,19 +7,21 @@
 </head>
 <body>
     <div style="font-size: 35px;border: 2px solid black;border-radius:10px;text-align:center;">🐦小鸟论坛</div>
-    <textarea style="width: 250px;height: 30px;border: 2px solid black;border-radius:10px;position: fixed;bottom: 40px; right: 110px;" id="sr" placeholder="请输入文本"></textarea>
+    <textarea maxlength="100" style="width: 250px;height: 30px;border: 2px solid black;border-radius:10px;position: fixed;bottom: 40px; right: 110px;" id="sr" placeholder="请输入文本"></textarea>
+    <input id="mz" maxlength="10" type="text" placeholder="请输入名字">
     <div style="width: 100px;height: 30px;border: 2px solid black;border-radius:10px;text-align:center;line-height:30px;position: fixed;bottom: 40px; right:0px;" id="fs" onclick="fsxx()">发送消息</div>
     <hr>
     <div id="lk"></div>
     <script>
         function fsxx() {
-            let sr=document.getElementById("sr"), lk=document.getElementById("lk");
+            let sr=document.getElementById("sr"), lk=document.getElementById("lk"), mz=document.getElementById("mz").value;
             let st=sr.value
             let sy=document.createElement("div")
             sy.sytle.width="280px"
             sy.style.height="20px"
-            sy.sytle.border="2px solid black;border-radius:10px"
-            sy.textContent=st
+            sy.sytle.border="2px solid black"
+            sy.sytle.borderRadius="10px"
+            sy.textContent=mz+st
             lk.appendChild(sy)
             sr.value=""
         }
