@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html>
-
 <head>
     <title>小鸟网站</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -17,11 +16,11 @@
             let sr=document.getElementById("sr"), lk=document.getElementById("lk"), mz=document.getElementById("mz").value;
             let st=sr.value
             let sy=document.createElement("div")
-            sy.sytle.width="280px"
-            sy.style.height="20px"
-            sy.sytle.border="2px solid black"
-            sy.sytle.borderRadius="10px"
-            sy.textContent=mz+st
+            sy.style.width="280px"
+            sy.style.height="auto"
+            sy.style.border="2px solid black"
+            sy.style.borderRadius="10px"
+            sy.textContent=mz+"："+st
             lk.appendChild(sy)
             sr.value=""
         }
