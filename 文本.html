@@ -241,7 +241,6 @@
                             video.preload = "metadata";
                             video.style.zIndex = "1";
                             
-                            // 核心修复：禁止视频跳出网页全屏
                             video.setAttribute("webkit-playsinline", "true");
                             video.setAttribute("playsinline", "true");
                             video.setAttribute("x-webkit-airplay", "allow");
@@ -271,19 +270,36 @@
             });
         }
 
-        sgk.channel('posts-channel')
+        // ========== 重点修复：实时通道强化版 ==========
+        const channel = sgk.channel('posts-channel', {
+            config: {
+                broadcast: { ack: true },
+                presence: { key: 'abc123' }
+            }
+        })
+
+        channel
         .on('postgres_changes', {
-            event: '*',
+            event: 'INSERT',
+            schema: 'public',
+            table: 'posts'
+        }, (payload) => {
+            console.log("实时刷新 →", payload)
+            loadMessages()
+        })
+        .on('postgres_changes', {
+            event: 'DELETE',
             schema: 'public',
             table: 'posts'
         }, () => {
-            loadMessages();
+            loadMessages()
         })
-        .subscribe();
-
-        document.addEventListener('DOMContentLoaded', () => {
-            setTimeout(loadMessages, 300);
-        });
+        .subscribe((status) => {
+            console.log("通道状态:", status)
+            if (status === 'SUBSCRIBED') {
+                loadMessages()
+            }
+        })
     </script>
 </body>
 </html>
