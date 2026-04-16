@@ -5,86 +5,95 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 </head>
 <body>
-    <div style="font-size: 35px;border: 2px solid black;border-radius:10px;text-align:center;">🐦小鸟论坛</div>
-    <textarea maxlength="100" style="width: 250px;height: 30px;border: 2px solid black;border-radius:10px;position: fixed;bottom: 40px; right: 110px;" id="sr" placeholder="请输入文本"></textarea>
-    <input id="mz" style="position: fixed;bottom: 80px; right:110px;" maxlength="10" type="text" placeholder="请输入名字">
-    <div style="width: 100px;height: 30px;border: 2px solid black;border-radius:10px;text-align:center;line-height:30px;position: fixed;bottom: 40px; right:0px;" id="fs" onclick="fsxx()">发送消息</div>
+    <div style="font-size: 35px;text-align:center;">🐦小鸟论坛</div>
     <hr>
-    <div id="lk"></div>
+
+    <!-- 消息显示区域 -->
+    <div id="lk" style="margin-bottom:100px;"></div>
+
+    <!-- 输入框固定在底部，不挡内容 -->
+    <div style="position:fixed;bottom:0;background:white;width:100%;padding:10px;box-sizing:border-box;">
+        <input id="mz" maxlength="10" placeholder="名字" style="width:100%;margin-bottom:5px;">
+        <textarea id="sr" maxlength="100" placeholder="说点什么..." style="width:100%;height:60px;"></textarea>
+        <button onclick="fsxx()" style="width:100%;padding:8px;">发送消息</button>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
-        const sgk=supabase.createClient("https://tyznbeynnxkweewgnour.supabase.co","sb_publishable_g0fn9M0IqZpVocj76y0rPw_IDKxkH2C")
+        const sgk = supabase.createClient("https://tyznbeynnxkweewgnour.supabase.co","sb_publishable_g0fn9M0IqZpVocj76y0rPw_IDKxkH2C")
+
         async function fsxx() {
-            let sr=document.getElementById("sr"), mz=document.getElementById("mz").value.trim();
-            let st=sr.value.trim()
-            if (st&&mz){
-                await sgk.from('posts').insert([{username:mz,content:st}])
-            }else{
-                console.log("禁止名字或输入内容空白")
+            let sr = document.getElementById("sr")
+            let mz = document.getElementById("mz")
+            let name = mz.value.trim()
+            let msg = sr.value.trim()
+
+            if (!name || !msg) {
+                console.log("名字或内容不能为空")
+                return
             }
-            sr.value=""
+
+            // 发送
+            await sgk.from('posts').insert([{
+                username: name,
+                content: msg
+            }])
+
+            sr.value = "" // 清空输入框
+            loadMessages() // 发完立刻刷新
         }
-        // 监听 posts 表的新增消息
-         sgk.channel('posts-channel')
-         .on('postgres_changes', {
-             event: 'INSERT',     // 只监听插入
-             schema: 'public',
-             table: 'posts'
-         }, () => {
-     // 这里面写：重新加载消息
-         loadMessages()
-         })
-         .subscribe()
- // 把刷新逻辑单独写成函数
-         async function loadMessages() {
-             const { data } = await sgk.from('posts').select('*')
-                if (data.length > 30) {
-                    let over = data.length - 30
-                    // 1. 查最早的 over 条
-                    const { data: oldItems } = await sgk
+
+        // 实时监听新消息
+        sgk.channel('posts-channel')
+            .on('postgres_changes', {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'posts'
+            }, () => {
+                loadMessages()
+            })
+            .subscribe()
+
+        // 加载消息
+        async function loadMessages() {
+            // 按 id 倒序 → 最新的在上面
+            const { data } = await sgk
+                .from('posts')
+                .select('*')
+                .order('id', { ascending: false })
+
+            if (data.length > 30) {
+                let over = data.length - 30
+                const { data: oldItems } = await sgk
                     .from('posts')
                     .select('id')
                     .order('id', { ascending: true })
                     .limit(over)
-                    // 2. 取出 id 数组
-                    const ids = oldItems.map(item => item.id)
-                    // 3. 一次性删除
-                    await sgk
-                    .from('posts')
-                    .delete()
-                    .in('id', ids)
-                    ({ data } = await sgk.from('posts').select('*'))
-                }
-                let lk=document.getElementById("lk")
-                lk.innerHTML = ''
-                data.forEach(item=>{
-                    let sy=document.createElement("div")
-                    sy.style.width="280px"
-                    sy.style.height="auto"
-                    sy.style.border="2px solid black"
-                    sy.style.borderRadius="10px"
-                    sy.style.wordBreak = "break-all"
-                    sy.textContent=item.username+"："+item.content
-                    lk.appendChild(sy)
-                })
-         }
+
+                const ids = oldItems.map(item => item.id)
+                await sgk.from('posts').delete().in('id', ids)
+
+                // 删完重新获取
+                ({ data } = await sgk.from('posts').select('*').order('id', { ascending: false }))
+            }
+
+            let lk = document.getElementById("lk")
+            lk.innerHTML = ''
+
+            data.forEach(item => {
+                let div = document.createElement("div")
+                div.style.border = "2px solid black"
+                div.style.borderRadius = "10px"
+                div.style.padding = "8px"
+                div.style.margin = "5px"
+                div.style.wordBreak = "break-all"
+                div.textContent = item.username + "：" + item.content
+                lk.appendChild(div)
+            })
+        }
+
+        // 刚打开页面就加载一次
+        loadMessages()
     </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
