@@ -14,7 +14,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
         const sgk=supabase.createClient("https://tyznbeynnxkweewgnour.supabase.co","sb_publishable_g0fn9M0IqZpVocj76y0rPw_IDKxkH2C")
-        function fsxx() {
+        async function fsxx() {
             let sr=document.getElementById("sr"), mz=document.getElementById("mz").value.trim();
             let st=sr.value.trim()
             if (st&&mz){
@@ -24,8 +24,38 @@
             }
             sr.value=""
         }
-        setInterval(()=>{
+        // 监听 posts 表的新增消息
+         sgk.channel('posts-channel')
+         .on('postgres_changes', {
+             event: 'INSERT',     // 只监听插入
+             schema: 'public',
+             table: 'posts'
+         }, () => {
+     // 这里面写：重新加载消息
+         loadMessages()
+         })
+         .subscribe()
+ // 把刷新逻辑单独写成函数
+         async function loadMessages() {
             sgk.from('posts').select('*').then(({data})=>{
+                if (data.length > 30) {
+                    // 1. 查最早的 over 条
+                    const { data: oldItems } = await sgk
+                    .from('posts')
+                    .select('id')
+                    .order('id', { ascending: true })
+                    .limit(over)
+                    // 2. 取出 id 数组
+                    const ids = oldItems.map(item => item.id)
+                    // 3. 一次性删除
+                    await sgk
+                    .from('posts')
+                    .delete()
+                    .in('id', ids)
+                    
+                    let over = data.length - 30
+                    data.splice(0, over) // 从头删掉 over 条
+                }
                 let lk=document.getElementById("lk")
                 lk.innerHTML = ''
                 data.forEach(item=>{
@@ -39,7 +69,7 @@
                     lk.appendChild(sy)
                 })
             })
-        },1000)
+         }
     </script>
 </body>
 </html>
