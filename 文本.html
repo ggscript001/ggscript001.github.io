@@ -13,7 +13,6 @@
             background: #000;
             color: #fff;
             font-family: Arial, sans-serif;
-            /* 关键1：给body加足够的底部内边距，永远给发送栏留位置 */
             padding-bottom: 140px;
         }
         #lk {
@@ -24,14 +23,10 @@
             max-width: 100%;
             height: auto;
             border-radius: 6px;
-            /* 关键2：视频永远在下层 */
-            position: relative;
-            z-index: 1;
         }
         video {
             background: #000;
         }
-        /* 关键3：发送栏固定在最底层，层级拉满，永远不被挡 */
         .send-bar {
             position: fixed;
             bottom: 0;
@@ -40,8 +35,7 @@
             background: #111;
             padding: 10px;
             border-top: 1px solid #333;
-            /* 极致高层级，覆盖所有内容 */
-            z-index: 999999 !important;
+            z-index: 9999;
         }
         input, textarea {
             width: 100%;
@@ -71,9 +65,7 @@
             color: #fff;
             border: none;
             border-radius: 6px;
-            cursor: pointer;
             font-weight: bold;
-            font-size: 14px;
         }
         .post-item {
             border: 1px solid #333;
@@ -111,15 +103,15 @@
     </style>
 </head>
 <body>
-    <div style="font-size: 30px; text-align: center; margin: 14px 0; font-weight: bold;">🐦 Birdie Forum</div>
-    <hr style="border-color: #333; margin: 0 10px;">
+    <div style="font-size:30px;text-align:center;margin:14px 0;font-weight:bold;">🐦 Birdie Forum</div>
+    <div style="font-size:15px;text-align:center;margin:14px 0;font-weight:bold;">Hypper Sandbox</div>
+    <hr style="border-color:#333;margin:0 10px;">
 
     <div id="lk"></div>
 
-    <!-- 底部发送栏 -->
     <div class="send-bar">
         <input id="mz" placeholder="Your name" maxlength="16">
-        <textarea id="sr" placeholder="Type your message..." maxlength="300" style="height: 60px;"></textarea>
+        <textarea id="sr" placeholder="Type your message..." maxlength="300" style="height:60px;"></textarea>
         <div class="file-row">
             <input type="file" id="file">
             <button class="send-btn" onclick="fsxx()">Send</button>
@@ -128,161 +120,134 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
-        const sgk = supabase.createClient(
+        // 修复：正确创建客户端
+        const sb = supabase.createClient(
             "https://tyznbeynnxkweewgnour.supabase.co",
             "sb_publishable_g0fn9M0IqZpVocj76y0rPw_IDKxkH2C"
         );
 
         function fmt(t) {
-            let d = new Date(t);
-            return d.getFullYear() + "-" +
-                String(d.getMonth()+1).padStart(2,'0') + "-" +
-                String(d.getDate()).padStart(2,'0') + " " +
-                String(d.getHours()).padStart(2,'0') + ":" +
-                String(d.getMinutes()).padStart(2,'0');
+            const d = new Date(t);
+            return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,0)}-${String(d.getDate()).padStart(2,0)} ${String(d.getHours()).padStart(2,0)}:${String(d.getMinutes()).padStart(2,0)}`;
+        }
+
+        function createPostEl(item) {
+            const div = document.createElement("div");
+            div.className = "post-item";
+            div.dataset.id = item.id;
+
+            const head = document.createElement("div");
+            head.className = "post-header";
+            head.textContent = `${item.username} • ${fmt(item.created_at)}`;
+            div.appendChild(head);
+
+            if (item.content) {
+                const ct = document.createElement("div");
+                ct.className = "post-content";
+                ct.textContent = item.content;
+                div.appendChild(ct);
+            }
+
+            if (item.file_url) {
+                const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(item.file_name || "");
+                const isVideo = /\.(mp4|webm|ogg|mov)$/i.test(item.file_name || "");
+
+                if (isImage) {
+                    const img = document.createElement("img");
+                    img.src = item.file_url;
+                    div.appendChild(img);
+                } else if (isVideo) {
+                    const video = document.createElement("video");
+                    video.src = item.file_url;
+                    video.controls = true;
+                    video.playsInline = true;
+                    div.appendChild(video);
+                } else {
+                    const fileBox = document.createElement("div");
+                    fileBox.className = "file-box";
+                    const nameSpan = document.createElement("span");
+                    nameSpan.textContent = "📎 " + (item.file_name || "File");
+                    fileBox.appendChild(nameSpan);
+                    const dl = document.createElement("a");
+                    dl.className = "download-btn";
+                    dl.href = item.file_url;
+                    dl.download = item.file_name || "file";
+                    dl.textContent = "Download";
+                    fileBox.appendChild(dl);
+                    div.appendChild(fileBox);
+                }
+            }
+            return div;
+        }
+
+        async function loadMessages() {
+            const { data, error } = await sb
+                .from('posts')
+                .select('*')
+                .order('id', { ascending: false });
+
+            if (error) return console.error("加载失败", error);
+            const box = document.getElementById("lk");
+            box.innerHTML = "";
+            data.forEach(item => box.appendChild(createPostEl(item)));
+        }
+
+        function appendPost(item) {
+            const box = document.getElementById("lk");
+            box.insertBefore(createPostEl(item), box.firstChild);
         }
 
         async function fsxx() {
-            let name = document.getElementById("mz").value.trim();
-            let msg = document.getElementById("sr").value.trim();
-            let fileInp = document.getElementById("file");
-            let file = fileInp.files[0];
+            const name = document.getElementById("mz").value.trim();
+            const msg = document.getElementById("sr").value.trim();
+            const file = document.getElementById("file").files[0];
 
-            if (!name) { alert("Please enter your name"); return; }
-            if (!msg && !file) { alert("Please enter a message or select a file"); return; }
+            if (!name) return alert("请输入昵称");
+            if (!msg && !file) return alert("请输入内容或选择文件");
 
-            let file_url = null;
-            let file_name = null;
-            let file_type = null;
+            let file_url = null, file_name = null, file_type = null;
 
             if (file) {
-                let file_id = crypto.randomUUID();
-                let ext = file.name.split('.').pop();
-                let path = `${file_id}.${ext}`;
+                const file_id = crypto.randomUUID();
+                const ext = file.name.split('.').pop();
+                const { data: up, error: upErr } = await sb.storage
+                    .from("files")
+                    .upload(`${file_id}.${ext}`, file);
 
-                let { data: up, error: upErr } = await sgk.storage
-                .from("files")
-                .upload(path, file, {
-                    cacheControl: '3600',
-                    upsert: false,
-                    contentType: file.type
-                });
-
-                if (upErr) {
-                    console.error("Upload error:", upErr);
-                    alert(`File upload failed: ${upErr.message}`);
-                    return;
-                }
-
-                let { data } = sgk.storage.from("files").getPublicUrl(up.path);
+                if (upErr) return alert("上传失败");
+                const { data } = sb.storage.from("files").getPublicUrl(up.path);
                 file_url = data.publicUrl;
                 file_name = file.name;
                 file_type = file.type;
             }
 
-            let { error: insertErr } = await sgk.from("posts").insert([{
-                username: name,
-                content: msg,
-                file_url,
-                file_name,
-                file_type,
-                created_at: new Date().toISOString()
+            const { error: insertErr } = await sb.from("posts").insert([{
+                username: name, content: msg, file_url, file_name, file_type
             }]);
 
-            if (insertErr) {
-                console.error("Post error:", insertErr);
-                alert(`Failed to send: ${insertErr.message}`);
-                return;
-            }
+            if (insertErr) return alert("发送失败：" + insertErr.message);
 
             document.getElementById("sr").value = "";
-            fileInp.value = "";
+            document.getElementById("file").value = "";
         }
 
-        function loadMessages() {
-            sgk.from('posts')
-            .select('*')
-            .order('id', { ascending: false })
-            .then(res => {
-                if (res.error) {
-                    console.error("Load error:", res.error);
-                    return;
-                }
-
-                let box = document.getElementById("lk");
-                box.innerHTML = "";
-
-                res.data.forEach(item => {
-                    let div = document.createElement("div");
-                    div.className = "post-item";
-
-                    let head = document.createElement("div");
-                    head.className = "post-header";
-                    head.textContent = `${item.username} • ${fmt(item.created_at)}`;
-                    div.appendChild(head);
-
-                    if (item.content) {
-                        let ct = document.createElement("div");
-                        ct.className = "post-content";
-                        ct.textContent = item.content;
-                        div.appendChild(ct);
-                    }
-
-                    if (item.file_url) {
-                        const isImage = item.file_type?.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp)$/i.test(item.file_name || "");
-                        const isVideo = item.file_type?.startsWith("video/") || /\.(mp4|webm|ogg|mov)$/i.test(item.file_name || "");
-
-                        if (isImage) {
-                            let img = document.createElement("img");
-                            img.src = item.file_url;
-                            img.alt = item.file_name;
-                            div.appendChild(img);
-                        } else if (isVideo) {
-                            let video = document.createElement("video");
-                            video.src = item.file_url;
-                            video.controls = true;
-                            video.preload = "metadata";
-                            // 额外防护：禁止视频悬浮层遮挡
-                            video.style.zIndex = "1";
-                            div.appendChild(video);
-                        } else {
-                            let fileBox = document.createElement("div");
-                            fileBox.className = "file-box";
-
-                            let nameSpan = document.createElement("span");
-                            nameSpan.textContent = "📎 " + (item.file_name || "File");
-                            fileBox.appendChild(nameSpan);
-
-                            let dl = document.createElement("a");
-                            dl.className = "download-btn";
-                            dl.href = item.file_url;
-                            dl.download = item.file_name || "file";
-                            dl.textContent = "Download";
-                            fileBox.appendChild(dl);
-
-                            div.appendChild(fileBox);
-                        }
-                    }
-
-                    box.appendChild(div);
-                });
-            });
+        let channel;
+        function setupRealtime() {
+            if (channel) sb.removeChannel(channel);
+            channel = sb.channel('posts-channel')
+                .on('postgres_changes', {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'posts'
+                }, payload => {
+                    appendPost(payload.new);
+                })
+                .subscribe();
         }
 
-        // 实时监听
-        sgk.channel('posts-channel')
-        .on('postgres_changes', {
-            event: '*',
-            schema: 'public',
-            table: 'posts'
-        }, () => {
-            loadMessages();
-        })
-        .subscribe();
-
-        // 首次加载
         document.addEventListener('DOMContentLoaded', () => {
-            setTimeout(loadMessages, 300);
+            setupRealtime();
+            loadMessages();
         });
     </script>
 </body>
