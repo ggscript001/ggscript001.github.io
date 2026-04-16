@@ -13,6 +13,7 @@
             background: #000;
             color: #fff;
             font-family: Arial, sans-serif;
+            /* 关键1：给body加足够的底部内边距，永远给发送栏留位置 */
             padding-bottom: 140px;
         }
         #lk {
@@ -23,12 +24,14 @@
             max-width: 100%;
             height: auto;
             border-radius: 6px;
+            /* 关键2：视频永远在下层 */
             position: relative;
             z-index: 1;
         }
         video {
             background: #000;
         }
+        /* 关键3：发送栏固定在最底层，层级拉满，永远不被挡 */
         .send-bar {
             position: fixed;
             bottom: 0;
@@ -37,8 +40,8 @@
             background: #111;
             padding: 10px;
             border-top: 1px solid #333;
+            /* 极致高层级，覆盖所有内容 */
             z-index: 999999 !important;
-            transform: translateZ(9999px);
         }
         input, textarea {
             width: 100%;
@@ -109,11 +112,11 @@
 </head>
 <body>
     <div style="font-size: 30px; text-align: center; margin: 14px 0; font-weight: bold;">🐦 Birdie Forum</div>
-    <div style="font-size: 15px; text-align: center; margin: 14px 0; font-weight: bold;">Hypper Sandbox</div>
     <hr style="border-color: #333; margin: 0 10px;">
 
     <div id="lk"></div>
 
+    <!-- 底部发送栏 -->
     <div class="send-bar">
         <input id="mz" placeholder="Your name" maxlength="16">
         <textarea id="sr" placeholder="Type your message..." maxlength="300" style="height: 60px;"></textarea>
@@ -139,95 +142,38 @@
                 String(d.getMinutes()).padStart(2,'0');
         }
 
-        // 单条消息DOM
-        function createPostEl(item) {
-            let div = document.createElement("div");
-            div.className = "post-item";
-            div.dataset.id = item.id;
-
-            let head = document.createElement("div");
-            head.className = "post-header";
-            head.textContent = `${item.username} • ${fmt(item.created_at)}`;
-            div.appendChild(head);
-
-            if (item.content) {
-                let ct = document.createElement("div");
-                ct.className = "post-content";
-                ct.textContent = item.content;
-                div.appendChild(ct);
-            }
-
-            if (item.file_url) {
-                const isImage = item.file_type?.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp)$/i.test(item.file_name || "");
-                const isVideo = item.file_type?.startsWith("video/") || /\.(mp4|webm|ogg|mov)$/i.test(item.file_name || "");
-
-                if (isImage) {
-                    let img = document.createElement("img");
-                    img.src = item.file_url;
-                    div.appendChild(img);
-                } else if (isVideo) {
-                    let video = document.createElement("video");
-                    video.src = item.file_url;
-                    video.controls = true;
-                    video.preload = "metadata";
-                    video.setAttribute("webkit-playsinline", "true");
-                    video.setAttribute("playsinline", "true");
-                    div.appendChild(video);
-                } else {
-                    let fileBox = document.createElement("div");
-                    fileBox.className = "file-box";
-                    let nameSpan = document.createElement("span");
-                    nameSpan.textContent = "📎 " + (item.file_name || "File");
-                    fileBox.appendChild(nameSpan);
-                    let dl = document.createElement("a");
-                    dl.className = "download-btn";
-                    dl.href = item.file_url;
-                    dl.download = item.file_name || "file";
-                    dl.textContent = "Download";
-                    fileBox.appendChild(dl);
-                    div.appendChild(fileBox);
-                }
-            }
-            return div;
-        }
-
-        // 加载所有消息
-        async function loadMessages() {
-            let { data, error } = await sgk.from('posts')
-                .select('*')
-                .order('id', { ascending: false });
-            if (error) {
-                console.error("加载失败:", error);
-                return;
-            }
-            let box = document.getElementById("lk");
-            box.innerHTML = "";
-            data.forEach(item => box.appendChild(createPostEl(item)));
-        }
-
-        // 追加单条（实时用）
-        function appendPost(item) {
-            let box = document.getElementById("lk");
-            box.insertBefore(createPostEl(item), box.firstChild);
-        }
-
-        // 发送
         async function fsxx() {
             let name = document.getElementById("mz").value.trim();
             let msg = document.getElementById("sr").value.trim();
             let fileInp = document.getElementById("file");
             let file = fileInp.files[0];
 
-            if (!name) { alert("请输入昵称"); return; }
-            if (!msg && !file) { alert("请输入内容或选文件"); return; }
+            if (!name) { alert("Please enter your name"); return; }
+            if (!msg && !file) { alert("Please enter a message or select a file"); return; }
 
-            let file_url = null, file_name = null, file_type = null;
+            let file_url = null;
+            let file_name = null;
+            let file_type = null;
+
             if (file) {
                 let file_id = crypto.randomUUID();
                 let ext = file.name.split('.').pop();
+                let path = `${file_id}.${ext}`;
+
                 let { data: up, error: upErr } = await sgk.storage
-                    .from("files").upload(`${file_id}.${ext}`, file);
-                if (upErr) { alert("上传失败"); return; }
+                .from("files")
+                .upload(path, file, {
+                    cacheControl: '3600',
+                    upsert: false,
+                    contentType: file.type
+                });
+
+                if (upErr) {
+                    console.error("Upload error:", upErr);
+                    alert(`File upload failed: ${upErr.message}`);
+                    return;
+                }
+
                 let { data } = sgk.storage.from("files").getPublicUrl(up.path);
                 file_url = data.publicUrl;
                 file_name = file.name;
@@ -235,68 +181,108 @@
             }
 
             let { error: insertErr } = await sgk.from("posts").insert([{
-                username: name, content: msg, file_url, file_name, file_type
+                username: name,
+                content: msg,
+                file_url,
+                file_name,
+                file_type,
+                created_at: new Date().toISOString()
             }]);
-            if (insertErr) { alert("发送失败"); return; }
+
+            if (insertErr) {
+                console.error("Post error:", insertErr);
+                alert(`Failed to send: ${insertErr.message}`);
+                return;
+            }
 
             document.getElementById("sr").value = "";
             fileInp.value = "";
         }
 
-        // ====================== 核心修复：稳定实时+自动重连 ======================
-        let channel;
-        function setupRealtime() {
-            // 先移除旧通道（防止重复）
-            if (channel) sgk.removeChannel(channel);
+        function loadMessages() {
+            sgk.from('posts')
+            .select('*')
+            .order('id', { ascending: false })
+            .then(res => {
+                if (res.error) {
+                    console.error("Load error:", res.error);
+                    return;
+                }
 
-            channel = sgk.channel(`posts:${Date.now()}`, {
-                config: { broadcast: { ack: true }, presence: { key: 'forum' } }
-            });
+                let box = document.getElementById("lk");
+                box.innerHTML = "";
 
-            channel
-                .on('postgres_changes', {
-                    event: 'INSERT',
-                    schema: 'public',
-                    table: 'posts'
-                }, (payload) => {
-                    console.log("✅ 实时收到新消息:", payload.new);
-                    appendPost(payload.new); // 只追加，不刷新全页
-                })
-                .on('postgres_changes', {
-                    event: 'DELETE',
-                    schema: 'public',
-                    table: 'posts'
-                }, () => {
-                    loadMessages();
-                })
-                .subscribe(async (status, err) => {
-                    console.log("📡 通道状态:", status);
-                    if (err) console.error("❌ 通道错误:", err);
+                res.data.forEach(item => {
+                    let div = document.createElement("div");
+                    div.className = "post-item";
 
-                    if (status === 'SUBSCRIBED') {
-                        console.log("✅ 已连接实时通道");
-                        await loadMessages(); // 连接成功再加载
+                    let head = document.createElement("div");
+                    head.className = "post-header";
+                    head.textContent = `${item.username} • ${fmt(item.created_at)}`;
+                    div.appendChild(head);
+
+                    if (item.content) {
+                        let ct = document.createElement("div");
+                        ct.className = "post-content";
+                        ct.textContent = item.content;
+                        div.appendChild(ct);
                     }
 
-                    // 断开/错误 → 3秒后自动重连
-                    if (['CLOSED', 'CHANNEL_ERROR'].includes(status)) {
-                        console.log("🔌 断开，3秒后重连...");
-                        setTimeout(setupRealtime, 3000);
+                    if (item.file_url) {
+                        const isImage = item.file_type?.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp)$/i.test(item.file_name || "");
+                        const isVideo = item.file_type?.startsWith("video/") || /\.(mp4|webm|ogg|mov)$/i.test(item.file_name || "");
+
+                        if (isImage) {
+                            let img = document.createElement("img");
+                            img.src = item.file_url;
+                            img.alt = item.file_name;
+                            div.appendChild(img);
+                        } else if (isVideo) {
+                            let video = document.createElement("video");
+                            video.src = item.file_url;
+                            video.controls = true;
+                            video.preload = "metadata";
+                            // 额外防护：禁止视频悬浮层遮挡
+                            video.style.zIndex = "1";
+                            div.appendChild(video);
+                        } else {
+                            let fileBox = document.createElement("div");
+                            fileBox.className = "file-box";
+
+                            let nameSpan = document.createElement("span");
+                            nameSpan.textContent = "📎 " + (item.file_name || "File");
+                            fileBox.appendChild(nameSpan);
+
+                            let dl = document.createElement("a");
+                            dl.className = "download-btn";
+                            dl.href = item.file_url;
+                            dl.download = item.file_name || "file";
+                            dl.textContent = "Download";
+                            fileBox.appendChild(dl);
+
+                            div.appendChild(fileBox);
+                        }
                     }
+
+                    box.appendChild(div);
                 });
+            });
         }
 
-        // 页面加载完成后再启动（解决竞态）
-        document.addEventListener('DOMContentLoaded', () => {
-            setTimeout(setupRealtime, 500); // 延迟500ms确保客户端就绪
-        });
+        // 实时监听
+        sgk.channel('posts-channel')
+        .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'posts'
+        }, () => {
+            loadMessages();
+        })
+        .subscribe();
 
-        // 页面可见时检查连接（防止后台休眠断连）
-        document.addEventListener('visibilitychange', () => {
-            if (!document.hidden) {
-                console.log("👁️ 页面激活，检查连接");
-                setupRealtime();
-            }
+        // 首次加载
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(loadMessages, 300);
         });
     </script>
 </body>
