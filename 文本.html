@@ -15,6 +15,18 @@
             font-family: Arial, sans-serif;
             padding-bottom: 140px;
         }
+        /* 终极兜底：底部遮罩，挡视频控件 */
+        body::after {
+            content: '';
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 140px;
+            background: transparent;
+            z-index: 999998 !important;
+            pointer-events: none;
+        }
         #lk {
             min-height: 200px;
             padding: 0 10px;
@@ -24,7 +36,8 @@
             height: auto;
             border-radius: 6px;
             position: relative;
-            z-index: 1;
+            z-index: 1 !important;
+            transform: translateZ(1px) !important;
         }
         video {
             background: #000;
@@ -38,7 +51,8 @@
             padding: 10px;
             border-top: 1px solid #333;
             z-index: 999999 !important;
-            transform: translateZ(9999px);
+            transform: translateZ(9999px) !important;
+            will-change: transform;
         }
         input, textarea {
             width: 100%;
@@ -235,18 +249,79 @@
                             img.alt = item.file_name;
                             div.appendChild(img);
                         } else if (isVideo) {
+                            // 方案2：点击才播放的视频，彻底防遮挡
+                            let videoContainer = document.createElement("div");
+                            videoContainer.style.position = "relative";
+                            videoContainer.style.width = "100%";
+                            videoContainer.style.borderRadius = "6px";
+                            videoContainer.style.overflow = "hidden";
+                            videoContainer.style.zIndex = "1";
+
                             let video = document.createElement("video");
                             video.src = item.file_url;
                             video.controls = true;
                             video.preload = "metadata";
-                            video.style.zIndex = "1";
-                            
-                            // 核心修复：禁止视频跳出网页全屏
+                            video.style.width = "100%";
+                            video.style.height = "auto";
+                            video.style.display = "none";
                             video.setAttribute("webkit-playsinline", "true");
                             video.setAttribute("playsinline", "true");
                             video.setAttribute("x-webkit-airplay", "allow");
-                            
-                            div.appendChild(video);
+
+                            let cover = document.createElement("div");
+                            cover.style.width = "100%";
+                            cover.style.aspectRatio = "16/9";
+                            cover.style.background = "#000";
+                            cover.style.borderRadius = "6px";
+                            cover.style.cursor = "pointer";
+                            cover.style.position = "relative";
+
+                            video.addEventListener('loadeddata', () => {
+                                let canvas = document.createElement("canvas");
+                                canvas.width = video.videoWidth;
+                                canvas.height = video.videoHeight;
+                                let ctx = canvas.getContext("2d");
+                                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                                cover.style.backgroundImage = `url(${canvas.toDataURL()})`;
+                                cover.style.backgroundSize = "cover";
+                                cover.style.backgroundPosition = "center";
+                            });
+
+                            let playBtn = document.createElement("div");
+                            playBtn.style.position = "absolute";
+                            playBtn.style.top = "50%";
+                            playBtn.style.left = "50%";
+                            playBtn.style.transform = "translate(-50%, -50%)";
+                            playBtn.style.width = "60px";
+                            playBtn.style.height = "60px";
+                            playBtn.style.borderRadius = "50%";
+                            playBtn.style.background = "rgba(0,0,0,0.7)";
+                            playBtn.style.display = "flex";
+                            playBtn.style.alignItems = "center";
+                            playBtn.style.justifyContent = "center";
+                            playBtn.innerHTML = "▶";
+                            playBtn.style.color = "#fff";
+                            playBtn.style.fontSize = "30px";
+                            cover.appendChild(playBtn);
+
+                            cover.addEventListener("click", () => {
+                                cover.style.display = "none";
+                                video.style.display = "block";
+                                video.play();
+                            });
+
+                            video.addEventListener("pause", () => {
+                                video.style.display = "none";
+                                cover.style.display = "block";
+                            });
+                            video.addEventListener("ended", () => {
+                                video.style.display = "none";
+                                cover.style.display = "block";
+                            });
+
+                            videoContainer.appendChild(cover);
+                            videoContainer.appendChild(video);
+                            div.appendChild(videoContainer);
                         } else {
                             let fileBox = document.createElement("div");
                             fileBox.className = "file-box";
