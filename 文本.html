@@ -10,9 +10,7 @@
         body {
             margin: 0;
             padding-bottom: 140px;
-            background: #000;
-            color: #fff;
-            font-family: Arial, sans-serif;
+            background: #fff;
         }
         #lk {
             min-height: 200px;
@@ -27,43 +25,23 @@
         video {
             background: #000;
         }
-        /* 底部发送栏：极致高层级，普通播放绝对不被挡 */
-        .send-bar {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: #111;
-            padding: 10px;
-            border-top: 1px solid #333;
-            z-index: 99999 !important;
-        }
-        input, textarea {
-            background: #222;
-            color: #fff;
-            border: 1px solid #444;
-            border-radius: 6px;
-            padding: 8px;
-        }
-        input::placeholder, textarea::placeholder {
-            color: #888;
-        }
     </style>
 </head>
 <body>
 
     <div style="font-size: 30px; text-align: center; margin: 10px 0;">🐦 Birdie Forum</div>
-    <hr style="border-color: #333;">
+    <hr>
 
     <div id="lk"></div>
 
-    <!-- 底部发送栏 -->
-    <div class="send-bar">
-        <input id="mz" placeholder="Your name" style="width:100%; margin-bottom:6px;">
-        <textarea id="sr" placeholder="Your message..." style="width:100%; height:60px;"></textarea>
+    <!-- 底部发送栏，提高层级，保证不被视频盖住 -->
+    <div style="position:fixed; bottom:0; left:0; right:0; background:white; padding:10px;
+                border-top:1px solid #eee; z-index: 9999;">
+        <input id="mz" placeholder="Your name" style="width:100%; padding:8px; margin-bottom:6px;">
+        <textarea id="sr" placeholder="Your message..." style="width:100%; height:60px; padding:8px;"></textarea>
         <div style="display:flex; gap:8px; margin-top:6px;">
-            <input type="file" id="file" style="flex:1; background:#222; color:#fff; border:1px solid #444; border-radius:6px; padding:6px;">
-            <button onclick="fsxx()" style="padding:8px 16px; background:#007bff; color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:bold;">Send</button>
+            <input type="file" id="file" style="flex:1;">
+            <button onclick="fsxx()" style="padding:8px 16px; background:#000; color:#fff; border:none; border-radius:6px; cursor:pointer;">Send</button>
         </div>
     </div>
 
@@ -147,15 +125,14 @@
                 box.innerHTML = "";
                 res.data.forEach(item => {
                     let div = document.createElement("div");
-                    div.style.border = "1px solid #333";
+                    div.style.border = "1px solid #ddd";
                     div.style.borderRadius = "8px";
                     div.style.padding = "10px";
                     div.style.margin = "8px";
-                    div.style.background = "#111";
 
                     let head = document.createElement("div");
                     head.style.fontSize = "12px";
-                    head.style.color = "#888";
+                    head.style.color = "#666";
                     head.textContent = item.username + " • " + fmt(item.created_at);
                     div.appendChild(head);
 
@@ -177,21 +154,8 @@
                             let video = document.createElement("video");
                             video.src = item.file_url;
                             video.controls = true;
-                            // 核心修复：禁用全屏，彻底解决遮挡
-                            video.controlsList = "nodownload";
                             video.style.maxWidth = "100%";
                             video.style.borderRadius = "6px";
-                            // 监听全屏事件，强制退出
-                            video.addEventListener('fullscreenchange', () => {
-                                if (document.fullscreenElement) {
-                                    document.exitFullscreen().catch(err => console.log(err));
-                                }
-                            });
-                            video.addEventListener('webkitfullscreenchange', () => {
-                                if (document.webkitFullscreenElement) {
-                                    document.webkitExitFullscreen().catch(err => console.log(err));
-                                }
-                            });
                             div.appendChild(video);
                         } else {
                             let fileWrap = document.createElement("div");
@@ -199,7 +163,7 @@
                             fileWrap.style.justifyContent = "space-between";
                             fileWrap.style.alignItems = "center";
                             fileWrap.style.padding = "6px";
-                            fileWrap.style.backgroundColor = "#222";
+                            fileWrap.style.backgroundColor = "#f5f5f5";
                             fileWrap.style.borderRadius = "6px";
 
                             let nameSpan = document.createElement("span");
@@ -210,7 +174,7 @@
                             dl.download = item.file_name;
                             dl.textContent = "Download";
                             dl.style.padding = "4px 10px";
-                            dl.style.backgroundColor = "#007bff";
+                            dl.style.backgroundColor = "#000";
                             dl.style.color = "#fff";
                             dl.style.borderRadius = "4px";
                             dl.style.textDecoration = "none";
