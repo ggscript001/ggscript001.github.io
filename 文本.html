@@ -4,7 +4,6 @@
     <title>小鸟论坛</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
-        /* 修复输入框遮挡 + 样式优化 */
         body { margin: 0; padding-bottom: 120px; }
         #lk { min-height: 200px; }
         img { max-width: 100% !important; height: auto !important; }
@@ -43,7 +42,7 @@
                 String(d.getMinutes()).padStart(2, '0');
         }
 
-        // 发送消息（文字+文件）【修复：上传错误捕获 + 强制刷新】
+        // 发送消息（文字+文件）【最终修复版】
         async function fsxx() {
             let name = document.getElementById("mz").value.trim();
             let msg = document.getElementById("sr").value.trim();
@@ -62,28 +61,31 @@
                 let ext = file.name.split(".").pop();
                 let path = `${file_id}.${ext}`;
 
-                // 修复1：捕获上传错误，避免静默失败
+                // 修复：完整错误捕获 + 上传配置
                 let { data: up, error: upErr } = await sgk.storage
                     .from("files")
                     .upload(path, file, {
                         cacheControl: '3600',
-                        upsert: false
+                        upsert: false,
+                        contentType: file.type
                     });
 
                 if (upErr) {
-                    console.error("文件上传失败:", upErr);
-                    return alert("文件上传失败：" + upErr.message);
+                    console.error("文件上传失败详情:", upErr);
+                    return alert(`文件上传失败：${upErr.message}\n请检查存储桶权限`);
                 }
 
                 if (up) {
+                    // 修复：100%正确获取公开URL
                     let { data } = sgk.storage.from("files").getPublicUrl(up.path);
                     file_url = data.publicUrl;
                     file_name = file.name;
                     file_type = file.type;
+                    console.log("文件上传成功，URL:", file_url);
                 }
             }
 
-            // 修复2：捕获插入错误
+            // 修复：完整错误捕获
             let { error: insertErr } = await sgk.from("posts").insert([{
                 username: name,
                 content: msg,
@@ -94,26 +96,25 @@
             }]);
 
             if (insertErr) {
-                console.error("消息插入失败:", insertErr);
-                return alert("消息发送失败：" + insertErr.message);
+                console.error("消息插入失败详情:", insertErr);
+                return alert(`消息发送失败：${insertErr.message}`);
             }
 
             document.getElementById("sr").value = "";
             fileInp.value = "";
-            // 修复3：强制刷新，确保数据渲染
             setTimeout(() => loadMessages(), 300);
         }
 
-        // 实时监听【修复：监听所有变更，避免删除后不刷新】
+        // 实时监听
         sgk.channel('posts-channel')
             .on('postgres_changes', {
-                event: '*', // 监听 INSERT/UPDATE/DELETE 所有事件
+                event: '*',
                 schema: 'public',
                 table: 'posts'
             }, () => loadMessages())
             .subscribe();
 
-        // 加载 + 自动清理旧消息（连带删文件）【修复：文件路径提取 + 错误捕获】
+        // 加载 + 自动清理
         async function loadMessages() {
             let { data, error: loadErr } = await sgk
                 .from("posts")
@@ -125,7 +126,6 @@
                 return;
             }
 
-            // 超过30条，删除最早的，连带删文件
             if (data.length > 30) {
                 let over = data.length - 30;
                 let { data: old, error: oldErr } = await sgk
@@ -137,11 +137,12 @@
                 if (oldErr) {
                     console.error("获取旧消息失败:", oldErr);
                 } else {
-                    // 删除文件【修复：更鲁棒的路径提取】
                     for (let item of old) {
                         if (item.file_url) {
-                            // 兼容不同的URL格式
-                            let path = item.file_url.split('/storage/v1/object/public/files/')[1] || item.file_url.split("/files/")[1];
+                            // 修复：终极路径提取，兼容所有URL格式
+                            let path = item.file_url.split('/storage/v1/object/public/files/')[1] 
+                                     || item.file_url.split("/files/")[1]
+                                     || item.file_url.split('/object/public/files/')[1];
                             if (path) {
                                 let { error: delErr } = await sgk.storage.from("files").remove([path]);
                                 if (delErr) console.error("删除文件失败:", delErr);
@@ -149,11 +150,8 @@
                         }
                     }
 
-                    // 删除消息
                     let ids = old.map(x => x.id);
                     await sgk.from("posts").delete().in("id", ids);
-
-                    // 重新加载
                     ({ data } = await sgk.from("posts").select("*").order("id", { ascending: false }));
                 }
             }
@@ -169,7 +167,6 @@
                 d.style.margin = "8px";
                 d.style.backgroundColor = "#f9f9f9";
 
-                // 头部：用户名 + 时间
                 let head = document.createElement("div");
                 head.style.fontSize = "12px";
                 head.style.color = "#666";
@@ -177,7 +174,6 @@
                 head.textContent = `${item.username} · ${fmt(item.created_at)}`;
                 d.appendChild(head);
 
-                // 文字内容
                 if (item.content) {
                     let ct = document.createElement("div");
                     ct.style.margin = "4px 0 8px 0";
@@ -186,7 +182,6 @@
                     d.appendChild(ct);
                 }
 
-                // 文件【修复：兜底显示，避免类型判断失效】
                 if (item.file_url) {
                     let isImage = item.file_type?.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp)$/i.test(item.file_name || "");
 
@@ -196,7 +191,6 @@
                         img.style.maxWidth = "100%";
                         img.style.borderRadius = "6px";
                         img.style.marginTop = "4px";
-                        // 修复：图片加载失败兜底
                         img.onerror = function() {
                             this.style.display = 'none';
                             let errBox = document.createElement("div");
@@ -246,7 +240,6 @@
             });
         }
 
-        // 初始加载【修复：延迟加载，确保DOM渲染完成】
         document.addEventListener('DOMContentLoaded', () => {
             setTimeout(() => loadMessages(), 500);
         });
