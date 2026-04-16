@@ -4,9 +4,10 @@
     <title>小鸟论坛</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
-        body { margin: 0; padding-bottom: 120px; }
+        body { margin: 0; padding-bottom: 120px; background: #fff; }
         #lk { min-height: 200px; }
-        img { max-width: 100% !important; height: auto !important; }
+        img, video { max-width: 100% !important; height: auto !important; border-radius: 6px; }
+        video { background: #000; }
     </style>
 </head>
 <body>
@@ -183,7 +184,9 @@
                 }
 
                 if (item.file_url) {
-                    let isImage = item.file_type?.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp)$/i.test(item.file_name || "");
+                    // 区分图片/视频/其他文件
+                    const isImage = item.file_type?.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp)$/i.test(item.file_name || "");
+                    const isVideo = item.file_type?.startsWith("video/") || /\.(mp4|webm|ogg|mov)$/i.test(item.file_name || "");
 
                     if (isImage) {
                         let img = document.createElement("img");
@@ -206,7 +209,32 @@
                             d.appendChild(errBox);
                         };
                         d.appendChild(img);
+                    } else if (isVideo) {
+                        // 新增：视频播放器
+                        let video = document.createElement("video");
+                        video.src = item.file_url;
+                        video.controls = true; // 显示播放控件
+                        video.preload = "metadata"; // 预加载元数据
+                        video.style.maxWidth = "100%";
+                        video.style.borderRadius = "6px";
+                        video.style.marginTop = "4px";
+                        video.onerror = function() {
+                            this.style.display = 'none';
+                            let errBox = document.createElement("div");
+                            errBox.textContent = "📎 视频加载失败，点击下载：" + item.file_name;
+                            errBox.style.color = "#999";
+                            let dl = document.createElement("a");
+                            dl.href = item.file_url;
+                            dl.download = item.file_name;
+                            dl.textContent = "下载";
+                            dl.style.marginLeft = "8px";
+                            dl.style.color = "#007bff";
+                            errBox.appendChild(dl);
+                            d.appendChild(errBox);
+                        };
+                        d.appendChild(video);
                     } else {
+                        // 其他文件：显示下载按钮
                         let fileBox = document.createElement("div");
                         fileBox.style.margin = "4px 0";
                         fileBox.style.display = "flex";
