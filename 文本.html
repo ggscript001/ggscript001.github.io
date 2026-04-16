@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Forum</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Birdie Forum</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
         * {
             box-sizing: border-box;
@@ -12,15 +12,26 @@
         body {
             background: #000;
             color: #fff;
+            font-family: Arial, sans-serif;
+            /* 关键1：给body加足够的底部内边距，永远给发送栏留位置 */
             padding-bottom: 140px;
         }
         #lk {
-            padding: 10px;
+            min-height: 200px;
+            padding: 0 10px;
         }
-        video, img {
+        img, video {
             max-width: 100%;
+            height: auto;
             border-radius: 6px;
+            /* 关键2：视频永远在下层 */
+            position: relative;
+            z-index: 1;
         }
+        video {
+            background: #000;
+        }
+        /* 关键3：发送栏固定在最底层，层级拉满，永远不被挡 */
         .send-bar {
             position: fixed;
             bottom: 0;
@@ -28,7 +39,9 @@
             right: 0;
             background: #111;
             padding: 10px;
-            z-index: 999;
+            border-top: 1px solid #333;
+            /* 极致高层级，覆盖所有内容 */
+            z-index: 999999 !important;
         }
         input, textarea {
             width: 100%;
@@ -38,167 +51,239 @@
             border-radius: 6px;
             padding: 8px;
             margin-bottom: 8px;
+            font-size: 14px;
+        }
+        input::placeholder, textarea::placeholder {
+            color: #888;
         }
         .file-row {
             display: flex;
             gap: 8px;
+            align-items: center;
         }
-        #file { flex:1; }
+        #file {
+            flex: 1;
+            padding: 6px;
+        }
         .send-btn {
-            padding: 8px 16px;
+            padding: 8px 20px;
             background: #007bff;
             color: #fff;
             border: none;
             border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
         }
         .post-item {
             border: 1px solid #333;
             border-radius: 8px;
             padding: 10px;
             margin: 8px 0;
+            background: #111;
         }
         .post-header {
             font-size: 12px;
             color: #888;
             margin-bottom: 6px;
         }
+        .post-content {
+            margin: 6px 0;
+            line-height: 1.5;
+        }
+        .file-box {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 8px;
+            background: #222;
+            border-radius: 6px;
+            margin-top: 4px;
+        }
+        .download-btn {
+            padding: 4px 10px;
+            background: #007bff;
+            color: #fff;
+            border-radius: 4px;
+            text-decoration: none;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
+    <div style="font-size: 30px; text-align: center; margin: 14px 0; font-weight: bold;">🐦 Birdie Forum</div>
+    <hr style="border-color: #333; margin: 0 10px;">
 
-<div style="text-align:center; padding:10px; font-size:24px;">🐦 Birdie Forum</div>
-<div id="lk"></div>
+    <div id="lk"></div>
 
-<div class="send-bar">
-    <input id="mz" placeholder="Name">
-    <textarea id="sr" placeholder="Message"> </textarea>
-    <div class="file-row">
-        <input type="file" id="file">
-        <button class="send-btn" onclick="send()">Send</button>
+    <!-- 底部发送栏 -->
+    <div class="send-bar">
+        <input id="mz" placeholder="Your name" maxlength="16">
+        <textarea id="sr" placeholder="Type your message..." maxlength="300" style="height: 60px;"></textarea>
+        <div class="file-row">
+            <input type="file" id="file">
+            <button class="send-btn" onclick="fsxx()">Send</button>
+        </div>
     </div>
-</div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>
-const sup = supabase.createClient(
-    "https://tyznbeynnxkweewgnour.supabase.co",
-    "sb_publishable_g0fn9M0IqZpVocj76y0rPw_IDKxkH2C"
-);
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        const sgk = supabase.createClient(
+            "https://tyznbeynnxkweewgnour.supabase.co",
+            "sb_publishable_g0fn9M0IqZpVocj76y0rPw_IDKxkH2C"
+        );
 
-function time(t) {
-    let d = new Date(t);
-    return d.toLocaleString();
-}
-
-// 创建单条消息 DOM
-function createPostElement(p) {
-    let d = document.createElement("div");
-    d.className = "post-item";
-    d.dataset.id = p.id;
-
-    let h = document.createElement("div");
-    h.className = "post-header";
-    h.textContent = p.username + " • " + time(p.created_at);
-    d.appendChild(h);
-
-    if (p.content) {
-        let t = document.createElement("div");
-        t.textContent = p.content;
-        d.appendChild(t);
-    }
-
-    if (p.file_url) {
-        if (p.file_type?.startsWith("image/")) {
-            let img = document.createElement("img");
-            img.src = p.file_url;
-            d.appendChild(img);
-        } else if (p.file_type?.startsWith("video/")) {
-            let v = document.createElement("video");
-            v.src = p.file_url;
-            v.controls = true;
-            v.style.width = "100%";
-            v.setAttribute("playsinline", "true");
-            d.appendChild(v);
+        function fmt(t) {
+            let d = new Date(t);
+            return d.getFullYear() + "-" +
+                String(d.getMonth()+1).padStart(2,'0') + "-" +
+                String(d.getDate()).padStart(2,'0') + " " +
+                String(d.getHours()).padStart(2,'0') + ":" +
+                String(d.getMinutes()).padStart(2,'0');
         }
-    }
 
-    return d;
-}
+        async function fsxx() {
+            let name = document.getElementById("mz").value.trim();
+            let msg = document.getElementById("sr").value.trim();
+            let fileInp = document.getElementById("file");
+            let file = fileInp.files[0];
 
-// 初始化加载所有帖子
-async function loadAllPosts() {
-    let { data } = await sup
-        .from("posts")
-        .select("*")
-        .order("id", { ascending: false });
+            if (!name) { alert("Please enter your name"); return; }
+            if (!msg && !file) { alert("Please enter a message or select a file"); return; }
 
-    let box = document.getElementById("lk");
-    box.innerHTML = "";
-    data.forEach(p => {
-        box.appendChild(createPostElement(p));
-    });
-}
+            let file_url = null;
+            let file_name = null;
+            let file_type = null;
 
-// 只追加新的一条，不刷新整个页面
-function appendNewPost(post) {
-    const box = document.getElementById("lk");
-    const firstChild = box.firstChild;
+            if (file) {
+                let file_id = crypto.randomUUID();
+                let ext = file.name.split('.').pop();
+                let path = `${file_id}.${ext}`;
 
-    // 插到最上面
-    if (firstChild) {
-        box.insertBefore(createPostElement(post), firstChild);
-    } else {
-        box.appendChild(createPostElement(post));
-    }
-}
+                let { data: up, error: upErr } = await sgk.storage
+                .from("files")
+                .upload(path, file, {
+                    cacheControl: '3600',
+                    upsert: false,
+                    contentType: file.type
+                });
 
-// 发送
-async function send() {
-    let name = document.getElementById("mz").value.trim();
-    let text = document.getElementById("sr").value.trim();
-    let file = document.getElementById("file").files[0];
+                if (upErr) {
+                    console.error("Upload error:", upErr);
+                    alert(`File upload failed: ${upErr.message}`);
+                    return;
+                }
 
-    if (!name || (!text && !file)) return;
+                let { data } = sgk.storage.from("files").getPublicUrl(up.path);
+                file_url = data.publicUrl;
+                file_name = file.name;
+                file_type = file.type;
+            }
 
-    let url = null, name2 = null, type = null;
+            let { error: insertErr } = await sgk.from("posts").insert([{
+                username: name,
+                content: msg,
+                file_url,
+                file_name,
+                file_type,
+                created_at: new Date().toISOString()
+            }]);
 
-    if (file) {
-        let id = crypto.randomUUID();
-        let ext = file.name.split('.').pop();
-        let { data, error } = await sup.storage.from("files").upload(id + "." + ext, file);
-        if (!error) {
-            let u = sup.storage.from("files").getPublicUrl(data.path);
-            url = u.data.publicUrl;
-            name2 = file.name;
-            type = file.type;
+            if (insertErr) {
+                console.error("Post error:", insertErr);
+                alert(`Failed to send: ${insertErr.message}`);
+                return;
+            }
+
+            document.getElementById("sr").value = "";
+            fileInp.value = "";
         }
-    }
 
-    await sup.from("posts").insert([{
-        username: name,
-        content: text,
-        file_url: url,
-        file_name: name2,
-        file_type: type
-    }]);
+        function loadMessages() {
+            sgk.from('posts')
+            .select('*')
+            .order('id', { ascending: false })
+            .then(res => {
+                if (res.error) {
+                    console.error("Load error:", res.error);
+                    return;
+                }
 
-    document.getElementById("sr").value = "";
-    document.getElementById("file").value = "";
-}
+                let box = document.getElementById("lk");
+                box.innerHTML = "";
 
-// 真正实时：监听到新数据，只加一条，不重绘整个页面
-sup.channel("realtime-chat")
-   .on('postgres_changes', {
-       event: 'INSERT',
-       schema: 'public',
-       table: 'posts'
-   }, (payload) => {
-       appendNewPost(payload.new);
-   })
-   .subscribe();
+                res.data.forEach(item => {
+                    let div = document.createElement("div");
+                    div.className = "post-item";
 
-// 第一次加载
-loadAllPosts();
-</script>
+                    let head = document.createElement("div");
+                    head.className = "post-header";
+                    head.textContent = `${item.username} • ${fmt(item.created_at)}`;
+                    div.appendChild(head);
+
+                    if (item.content) {
+                        let ct = document.createElement("div");
+                        ct.className = "post-content";
+                        ct.textContent = item.content;
+                        div.appendChild(ct);
+                    }
+
+                    if (item.file_url) {
+                        const isImage = item.file_type?.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp)$/i.test(item.file_name || "");
+                        const isVideo = item.file_type?.startsWith("video/") || /\.(mp4|webm|ogg|mov)$/i.test(item.file_name || "");
+
+                        if (isImage) {
+                            let img = document.createElement("img");
+                            img.src = item.file_url;
+                            img.alt = item.file_name;
+                            div.appendChild(img);
+                        } else if (isVideo) {
+                            let video = document.createElement("video");
+                            video.src = item.file_url;
+                            video.controls = true;
+                            video.preload = "metadata";
+                            // 额外防护：禁止视频悬浮层遮挡
+                            video.style.zIndex = "1";
+                            div.appendChild(video);
+                        } else {
+                            let fileBox = document.createElement("div");
+                            fileBox.className = "file-box";
+
+                            let nameSpan = document.createElement("span");
+                            nameSpan.textContent = "📎 " + (item.file_name || "File");
+                            fileBox.appendChild(nameSpan);
+
+                            let dl = document.createElement("a");
+                            dl.className = "download-btn";
+                            dl.href = item.file_url;
+                            dl.download = item.file_name || "file";
+                            dl.textContent = "Download";
+                            fileBox.appendChild(dl);
+
+                            div.appendChild(fileBox);
+                        }
+                    }
+
+                    box.appendChild(div);
+                });
+            });
+        }
+
+        // 实时监听
+        sgk.channel('posts-channel')
+        .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'posts'
+        }, () => {
+            loadMessages();
+        })
+        .subscribe();
+
+        // 首次加载
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(loadMessages, 300);
+        });
+    </script>
 </body>
 </html>
