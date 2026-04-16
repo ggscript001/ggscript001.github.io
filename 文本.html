@@ -71,7 +71,7 @@
 
 <div class="send-bar">
     <input id="mz" placeholder="Name">
-    <textarea id="sr" placeholder="Message"></textarea>
+    <textarea id="sr" placeholder="Message"> </textarea>
     <div class="file-row">
         <input type="file" id="file">
         <button class="send-btn" onclick="send()">Send</button>
@@ -90,7 +90,43 @@ function time(t) {
     return d.toLocaleString();
 }
 
-async function loadPosts() {
+// 创建单条消息 DOM
+function createPostElement(p) {
+    let d = document.createElement("div");
+    d.className = "post-item";
+    d.dataset.id = p.id;
+
+    let h = document.createElement("div");
+    h.className = "post-header";
+    h.textContent = p.username + " • " + time(p.created_at);
+    d.appendChild(h);
+
+    if (p.content) {
+        let t = document.createElement("div");
+        t.textContent = p.content;
+        d.appendChild(t);
+    }
+
+    if (p.file_url) {
+        if (p.file_type?.startsWith("image/")) {
+            let img = document.createElement("img");
+            img.src = p.file_url;
+            d.appendChild(img);
+        } else if (p.file_type?.startsWith("video/")) {
+            let v = document.createElement("video");
+            v.src = p.file_url;
+            v.controls = true;
+            v.style.width = "100%";
+            v.setAttribute("playsinline", "true");
+            d.appendChild(v);
+        }
+    }
+
+    return d;
+}
+
+// 初始化加载所有帖子
+async function loadAllPosts() {
     let { data } = await sup
         .from("posts")
         .select("*")
@@ -98,41 +134,25 @@ async function loadPosts() {
 
     let box = document.getElementById("lk");
     box.innerHTML = "";
-
     data.forEach(p => {
-        let d = document.createElement("div");
-        d.className = "post-item";
-
-        let h = document.createElement("div");
-        h.className = "post-header";
-        h.textContent = p.username + " • " + time(p.created_at);
-        d.appendChild(h);
-
-        if (p.content) {
-            let t = document.createElement("div");
-            t.textContent = p.content;
-            d.appendChild(t);
-        }
-
-        if (p.file_url) {
-            if (p.file_type?.startsWith("image/")) {
-                let img = document.createElement("img");
-                img.src = p.file_url;
-                d.appendChild(img);
-            } else if (p.file_type?.startsWith("video/")) {
-                let v = document.createElement("video");
-                v.src = p.file_url;
-                v.controls = true;
-                v.style.width = "100%";
-                v.setAttribute("playsinline", "true");
-                d.appendChild(v);
-            }
-        }
-
-        box.appendChild(d);
+        box.appendChild(createPostElement(p));
     });
 }
 
+// 只追加新的一条，不刷新整个页面
+function appendNewPost(post) {
+    const box = document.getElementById("lk");
+    const firstChild = box.firstChild;
+
+    // 插到最上面
+    if (firstChild) {
+        box.insertBefore(createPostElement(post), firstChild);
+    } else {
+        box.appendChild(createPostElement(post));
+    }
+}
+
+// 发送
 async function send() {
     let name = document.getElementById("mz").value.trim();
     let text = document.getElementById("sr").value.trim();
@@ -166,19 +186,19 @@ async function send() {
     document.getElementById("file").value = "";
 }
 
-// 只监听新消息，不疯狂刷新
-sup.channel("chat-channel")
-   .on("postgres_changes", {
-       event: "INSERT",
-       schema: "public",
-       table: "posts"
-   }, () => {
-       loadPosts();
+// 真正实时：监听到新数据，只加一条，不重绘整个页面
+sup.channel("realtime-chat")
+   .on('postgres_changes', {
+       event: 'INSERT',
+       schema: 'public',
+       table: 'posts'
+   }, (payload) => {
+       appendNewPost(payload.new);
    })
    .subscribe();
 
-// 页面打开加载一次
-loadPosts();
+// 第一次加载
+loadAllPosts();
 </script>
 </body>
 </html>
