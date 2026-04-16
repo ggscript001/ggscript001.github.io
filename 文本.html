@@ -45,12 +45,12 @@
             "sb_publishable_g0fn9M0IqZpVocj76y0rPw_IDKxkH2C"
         );
 
-        const BUCKET = "files";
-        const QUOTA_BYTES = 500 * 1024 * 1024; // 500MB 硬限制
+        // 后端接口（换成你自己的）
+        const API_URL = "https://tyznbeynnxkweewgnour.supabase.co/functions/v1/post-message";
 
-        // -------------------------------
-        // 1. 获取桶内所有文件（按时间升序：最早的在前）
-        // -------------------------------
+        const BUCKET = "files";
+        const QUOTA_BYTES = 500 * 1024 * 1024;
+
         async function listFiles() {
             const { data } = await sb.storage.from(BUCKET).list('', {
                 sortBy: { column: 'created_at', order: 'asc' }
@@ -58,9 +58,6 @@
             return data || [];
         }
 
-        // -------------------------------
-        // 2. 计算桶内当前总大小（字节）
-        // -------------------------------
         async function getBucketTotalSize() {
             const files = await listFiles();
             let total = 0;
@@ -68,30 +65,17 @@
             return total;
         }
 
-        // -------------------------------
-        // 3. 核心逻辑：检测是否会超，并自动删除最早的文件
-        // -------------------------------
         async function checkAndCleanupBeforeUpload(file) {
-            if (!file) return true; // 没文件就不用检
-
+            if (!file) return true;
             const fileSize = file.size;
             const currentTotal = await getBucketTotalSize();
             const willBeTotal = currentTotal + fileSize;
+            if (willBeTotal <= QUOTA_BYTES) return true;
 
-            // 不会超 → 直接返回 true
-            if (willBeTotal <= QUOTA_BYTES) {
-                console.log("✅ 不会超过 500MB，无需清理");
-                return true;
-            }
-
-            // 会超 → 计算需要释放多少空间
             let needFree = willBeTotal - QUOTA_BYTES;
-            console.log(`⚠️ 即将超出：${(needFree / 1024 / 1024).toFixed(2)}MB，开始清理最早文件`);
-
             const files = await listFiles();
             let filesToDelete = [];
 
-            // 从最早的开始删，直到释放足够空间
             for (const f of files) {
                 if (needFree <= 0) break;
                 const size = f.metadata?.size || 0;
@@ -100,47 +84,25 @@
             }
 
             if (filesToDelete.length === 0) return false;
-
-            console.log(`🗑️ 将删除 ${filesToDelete.length} 个最早的文件`);
             const { error } = await sb.storage.from(BUCKET).remove(filesToDelete);
-
-            if (error) {
-                console.error("删除失败：", error);
-                return false;
-            }
-
-            console.log("✅ 清理完成，可以安全上传了");
+            if (error) return false;
             return true;
         }
 
-        // -------------------------------
-        // 4. 带自动清理的上传函数
-        // -------------------------------
         async function uploadFile(file) {
             const file_id = crypto.randomUUID();
             const ext = file.name.split('.').pop();
             const { data: up, error } = await sb.storage.from(BUCKET).upload(`${file_id}.${ext}`, file);
-
-            if (error) {
-                alert("上传失败：" + error.message);
-                return null;
-            }
-
+            if (error) { alert(error.message); return null; }
             const { data } = sb.storage.from(BUCKET).getPublicUrl(up.path);
             return data.publicUrl;
         }
 
-        // -------------------------------
-        // 5. 时间格式化
-        // -------------------------------
         function fmt(t) {
             const d = new Date(t);
             return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,0)}-${String(d.getDate()).padStart(2,0)} ${String(d.getHours()).padStart(2,0)}:${String(d.getMinutes()).padStart(2,0)}`;
         }
 
-        // -------------------------------
-        // 6. 创建消息 DOM
-        // -------------------------------
         function createPostEl(item) {
             const div = document.createElement("div");
             div.className = "post-item";
@@ -161,7 +123,6 @@
             if (item.file_url) {
                 const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(item.file_name || "");
                 const isVideo = /\.(mp4|webm|ogg|mov)$/i.test(item.file_name || "");
-
                 if (isImage) {
                     const img = document.createElement("img");
                     img.src = item.file_url;
@@ -190,28 +151,22 @@
             return div;
         }
 
-        // -------------------------------
-        // 7. 加载消息
-        // -------------------------------
         async function loadMessages() {
             const { data, error } = await sb.from("posts").select("*").order("id", { ascending: false });
-            if (error) return console.error("加载失败", error);
+            if (error) return;
             const box = document.getElementById("lk");
             box.innerHTML = "";
             data.forEach(item => box.appendChild(createPostEl(item)));
         }
 
-        // -------------------------------
-        // 8. 实时追加
-        // -------------------------------
         function appendPost(item) {
             const box = document.getElementById("lk");
             box.insertBefore(createPostEl(item), box.firstChild);
         }
 
-        // -------------------------------
-        // 9. 发送函数（完全按你要求写的）
-        // -------------------------------
+        // ==============================================
+        // 这里是重点：发消息走后端，不再直接 insert 数据库
+        // ==============================================
         async function fsxx() {
             const name = document.getElementById("mz").value.trim();
             const msg = document.getElementById("sr").value.trim();
@@ -220,23 +175,15 @@
             if (!name) return alert("请输入昵称");
             if (!msg && !file) return alert("请输入内容或选择文件");
 
-            // 检测文件大小
-            if (file) {
-                const sizeMB = (file.size / 1024 / 1024).toFixed(2);
-                console.log("用户准备发送的文件大小：", sizeMB, "MB");
-
-                if (parseFloat(sizeMB) > 49) {
-                    alert("文件不能超过 50MB");
-                    return;
-                }
+            if (file && file.size > 50 * 1024 * 1024) {
+                alert("文件不能超过 50MB");
+                return;
             }
 
-            // 核心：你要求的逻辑 → 上传前检测、自动清理
-            const canProceed = await checkAndCleanupBeforeUpload(file);
-            if (!canProceed) return;
+            const ok = await checkAndCleanupBeforeUpload(file);
+            if (!ok) return alert("空间不足");
 
             let file_url = null, file_name = null, file_type = null;
-
             if (file) {
                 file_url = await uploadFile(file);
                 if (!file_url) return;
@@ -244,19 +191,30 @@
                 file_type = file.type;
             }
 
-            const { error } = await sb.from("posts").insert([{
-                username: name, content: msg, file_url, file_name, file_type
-            }]);
+            // ============== 安全版本：走接口 ==============
+            const res = await fetch(API_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    username: name,
+                    content: msg,
+                    file_url,
+                    file_name,
+                    file_type
+                })
+            });
 
-            if (error) return alert("发送失败：" + error.message);
+            const result = await res.json();
+
+            if (!res.ok) {
+                alert("发送失败：" + (result.error || ""));
+                return;
+            }
 
             document.getElementById("sr").value = "";
             document.getElementById("file").value = "";
         }
 
-        // -------------------------------
-        // 10. 实时监听
-        // -------------------------------
         let channel;
         function setupRealtime() {
             if (channel) sb.removeChannel(channel);
