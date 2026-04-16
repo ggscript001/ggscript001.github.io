@@ -4,102 +4,22 @@
     <title>Birdie Forum</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-        body {
-            background: #000;
-            color: #fff;
-            font-family: Arial, sans-serif;
-            padding-bottom: 140px;
-        }
-        #lk {
-            min-height: 200px;
-            padding: 0 10px;
-        }
-        img, video {
-            max-width: 100%;
-            height: auto;
-            border-radius: 6px;
-        }
-        video {
-            background: #000;
-        }
-        .send-bar {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: #111;
-            padding: 10px;
-            border-top: 1px solid #333;
-            z-index: 9999;
-        }
-        input, textarea {
-            width: 100%;
-            background: #222;
-            color: #fff;
-            border: 1px solid #444;
-            border-radius: 6px;
-            padding: 8px;
-            margin-bottom: 8px;
-            font-size: 14px;
-        }
-        input::placeholder, textarea::placeholder {
-            color: #888;
-        }
-        .file-row {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
-        #file {
-            flex: 1;
-            padding: 6px;
-        }
-        .send-btn {
-            padding: 8px 20px;
-            background: #007bff;
-            color: #fff;
-            border: none;
-            border-radius: 6px;
-            font-weight: bold;
-        }
-        .post-item {
-            border: 1px solid #333;
-            border-radius: 8px;
-            padding: 10px;
-            margin: 8px 0;
-            background: #111;
-        }
-        .post-header {
-            font-size: 12px;
-            color: #888;
-            margin-bottom: 6px;
-        }
-        .post-content {
-            margin: 6px 0;
-            line-height: 1.5;
-        }
-        .file-box {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 6px 8px;
-            background: #222;
-            border-radius: 6px;
-            margin-top: 4px;
-        }
-        .download-btn {
-            padding: 4px 10px;
-            background: #007bff;
-            color: #fff;
-            border-radius: 4px;
-            text-decoration: none;
-            font-size: 14px;
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: #000; color: #fff; font-family: Arial, sans-serif; padding-bottom: 140px; }
+        #lk { min-height: 200px; padding: 0 10px; }
+        img, video { max-width: 100%; height: auto; border-radius: 6px; }
+        video { background: #000; }
+        .send-bar { position: fixed; bottom: 0; left: 0; right: 0; background: #111; padding: 10px; border-top: 1px solid #333; z-index: 9999; }
+        input, textarea { width: 100%; background: #222; color: #fff; border: 1px solid #444; border-radius: 6px; padding: 8px; margin-bottom: 8px; font-size: 14px; }
+        input::placeholder, textarea::placeholder { color: #888; }
+        .file-row { display: flex; gap: 8px; align-items: center; }
+        #file { flex: 1; padding: 6px; }
+        .send-btn { padding: 8px 20px; background: #007bff; color: #fff; border: none; border-radius: 6px; font-weight: bold; }
+        .post-item { border: 1px solid #333; border-radius: 8px; padding: 10px; margin: 8px 0; background: #111; }
+        .post-header { font-size: 12px; color: #888; margin-bottom: 6px; }
+        .post-content { margin: 6px 0; line-height: 1.5; }
+        .file-box { display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; background: #222; border-radius: 6px; margin-top: 4px; }
+        .download-btn { padding: 4px 10px; background: #007bff; color: #fff; border-radius: 4px; text-decoration: none; font-size: 14px; }
     </style>
 </head>
 <body>
@@ -120,17 +40,107 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
-        // 修复：正确创建客户端
         const sb = supabase.createClient(
             "https://tyznbeynnxkweewgnour.supabase.co",
             "sb_publishable_g0fn9M0IqZpVocj76y0rPw_IDKxkH2C"
         );
 
+        const BUCKET = "files";
+        const QUOTA_BYTES = 500 * 1024 * 1024; // 500MB 硬限制
+
+        // -------------------------------
+        // 1. 获取桶内所有文件（按时间升序：最早的在前）
+        // -------------------------------
+        async function listFiles() {
+            const { data } = await sb.storage.from(BUCKET).list('', {
+                sortBy: { column: 'created_at', order: 'asc' }
+            });
+            return data || [];
+        }
+
+        // -------------------------------
+        // 2. 计算桶内当前总大小（字节）
+        // -------------------------------
+        async function getBucketTotalSize() {
+            const files = await listFiles();
+            let total = 0;
+            files.forEach(f => total += f.metadata?.size || 0);
+            return total;
+        }
+
+        // -------------------------------
+        // 3. 核心逻辑：检测是否会超，并自动删除最早的文件
+        // -------------------------------
+        async function checkAndCleanupBeforeUpload(file) {
+            if (!file) return true; // 没文件就不用检
+
+            const fileSize = file.size;
+            const currentTotal = await getBucketTotalSize();
+            const willBeTotal = currentTotal + fileSize;
+
+            // 不会超 → 直接返回 true
+            if (willBeTotal <= QUOTA_BYTES) {
+                console.log("✅ 不会超过 500MB，无需清理");
+                return true;
+            }
+
+            // 会超 → 计算需要释放多少空间
+            let needFree = willBeTotal - QUOTA_BYTES;
+            console.log(`⚠️ 即将超出：${(needFree / 1024 / 1024).toFixed(2)}MB，开始清理最早文件`);
+
+            const files = await listFiles();
+            let filesToDelete = [];
+
+            // 从最早的开始删，直到释放足够空间
+            for (const f of files) {
+                if (needFree <= 0) break;
+                const size = f.metadata?.size || 0;
+                filesToDelete.push(f.name);
+                needFree -= size;
+            }
+
+            if (filesToDelete.length === 0) return false;
+
+            console.log(`🗑️ 将删除 ${filesToDelete.length} 个最早的文件`);
+            const { error } = await sb.storage.from(BUCKET).remove(filesToDelete);
+
+            if (error) {
+                console.error("删除失败：", error);
+                return false;
+            }
+
+            console.log("✅ 清理完成，可以安全上传了");
+            return true;
+        }
+
+        // -------------------------------
+        // 4. 带自动清理的上传函数
+        // -------------------------------
+        async function uploadFile(file) {
+            const file_id = crypto.randomUUID();
+            const ext = file.name.split('.').pop();
+            const { data: up, error } = await sb.storage.from(BUCKET).upload(`${file_id}.${ext}`, file);
+
+            if (error) {
+                alert("上传失败：" + error.message);
+                return null;
+            }
+
+            const { data } = sb.storage.from(BUCKET).getPublicUrl(up.path);
+            return data.publicUrl;
+        }
+
+        // -------------------------------
+        // 5. 时间格式化
+        // -------------------------------
         function fmt(t) {
             const d = new Date(t);
             return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,0)}-${String(d.getDate()).padStart(2,0)} ${String(d.getHours()).padStart(2,0)}:${String(d.getMinutes()).padStart(2,0)}`;
         }
 
+        // -------------------------------
+        // 6. 创建消息 DOM
+        // -------------------------------
         function createPostEl(item) {
             const div = document.createElement("div");
             div.className = "post-item";
@@ -180,23 +190,28 @@
             return div;
         }
 
+        // -------------------------------
+        // 7. 加载消息
+        // -------------------------------
         async function loadMessages() {
-            const { data, error } = await sb
-                .from('posts')
-                .select('*')
-                .order('id', { ascending: false });
-
+            const { data, error } = await sb.from("posts").select("*").order("id", { ascending: false });
             if (error) return console.error("加载失败", error);
             const box = document.getElementById("lk");
             box.innerHTML = "";
             data.forEach(item => box.appendChild(createPostEl(item)));
         }
 
+        // -------------------------------
+        // 8. 实时追加
+        // -------------------------------
         function appendPost(item) {
             const box = document.getElementById("lk");
             box.insertBefore(createPostEl(item), box.firstChild);
         }
 
+        // -------------------------------
+        // 9. 发送函数（完全按你要求写的）
+        // -------------------------------
         async function fsxx() {
             const name = document.getElementById("mz").value.trim();
             const msg = document.getElementById("sr").value.trim();
@@ -205,43 +220,49 @@
             if (!name) return alert("请输入昵称");
             if (!msg && !file) return alert("请输入内容或选择文件");
 
+            // 检测文件大小
+            if (file) {
+                const sizeMB = (file.size / 1024 / 1024).toFixed(2);
+                console.log("用户准备发送的文件大小：", sizeMB, "MB");
+
+                if (parseFloat(sizeMB) > 49) {
+                    alert("文件不能超过 50MB");
+                    return;
+                }
+            }
+
+            // 核心：你要求的逻辑 → 上传前检测、自动清理
+            const canProceed = await checkAndCleanupBeforeUpload(file);
+            if (!canProceed) return;
+
             let file_url = null, file_name = null, file_type = null;
 
             if (file) {
-                const file_id = crypto.randomUUID();
-                const ext = file.name.split('.').pop();
-                const { data: up, error: upErr } = await sb.storage
-                    .from("files")
-                    .upload(`${file_id}.${ext}`, file);
-
-                if (upErr) return alert("上传失败");
-                const { data } = sb.storage.from("files").getPublicUrl(up.path);
-                file_url = data.publicUrl;
+                file_url = await uploadFile(file);
+                if (!file_url) return;
                 file_name = file.name;
                 file_type = file.type;
             }
 
-            const { error: insertErr } = await sb.from("posts").insert([{
+            const { error } = await sb.from("posts").insert([{
                 username: name, content: msg, file_url, file_name, file_type
             }]);
 
-            if (insertErr) return alert("发送失败：" + insertErr.message);
+            if (error) return alert("发送失败：" + error.message);
 
             document.getElementById("sr").value = "";
             document.getElementById("file").value = "";
         }
 
+        // -------------------------------
+        // 10. 实时监听
+        // -------------------------------
         let channel;
         function setupRealtime() {
             if (channel) sb.removeChannel(channel);
             channel = sb.channel('posts-channel')
-                .on('postgres_changes', {
-                    event: 'INSERT',
-                    schema: 'public',
-                    table: 'posts'
-                }, payload => {
-                    appendPost(payload.new);
-                })
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' },
+                    payload => appendPost(payload.new))
                 .subscribe();
         }
 
