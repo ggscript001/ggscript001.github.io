@@ -1,28 +1,30 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>小鸟论坛</title>
+    <title>Birdie Forum</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
-        body { margin: 0; padding-bottom: 120px; background: #fff; }
+        body { margin: 0; padding-bottom: 120px; background: #f7f7f7; font-family: Arial, sans-serif; }
         #lk { min-height: 200px; }
-        img, video { max-width: 100% !important; height: auto !important; border-radius: 6px; }
+        img, video { max-width: 100% !important; height: auto !important; border-radius: 8px; }
         video { background: #000; }
     </style>
 </head>
 <body>
-    <div style="font-size: 30px; text-align: center; margin: 10px 0;">🐦Birdie forum</div>
+
+    <div style="font-size: 32px; text-align: center; margin: 14px 0; font-weight: bold;">🐦 Birdie Forum</div>
+    <div style="text-align:center; color:#666; margin-bottom:10px;">Simple & Fast Public Chat</div>
     <hr>
 
     <div id="lk" style="margin-bottom: 120px;"></div>
 
     <div style="position: fixed; bottom: 0; background: white; width: 100%; padding: 10px; box-sizing: border-box; border-top: 1px solid #eee;">
-        <input id="mz" maxlength="10" placeholder="Id name" style="width: 100%; padding: 8px; margin-bottom: 8px; box-sizing: border-box;">
-        <textarea id="sr" maxlength="200" placeholder="Input message ..." style="width: 100%; height: 60px; padding: 8px; box-sizing: border-box;"></textarea>
+        <input id="mz" maxlength="16" placeholder="Your Name" style="width: 100%; padding: 9px; margin-bottom: 8px; box-sizing: border-box; border-radius:6px; border:1px solid #ddd;">
+        <textarea id="sr" maxlength="300" placeholder="Type your message..." style="width: 100%; height: 65px; padding: 9px; box-sizing: border-box; border-radius:6px; border:1px solid #ddd;"></textarea>
         
         <div style="display: flex; gap: 8px; margin-top: 8px;">
             <input type="file" id="file" style="flex: 1; padding: 6px;">
-            <button onclick="fsxx()" style="padding: 8px 16px; background: #000; color: #fff; border: none; border-radius: 6px; cursor: pointer;">Send</button>
+            <button onclick="fsxx()" style="padding: 10px 20px; background: #007bff; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight:bold;">Send</button>
         </div>
     </div>
 
@@ -33,7 +35,6 @@
             "sb_publishable_g0fn9M0IqZpVocj76y0rPw_IDKxkH2C"
         );
 
-        // 格式化时间
         function fmt(t) {
             let d = new Date(t);
             return d.getFullYear() + "-" +
@@ -43,15 +44,14 @@
                 String(d.getMinutes()).padStart(2, '0');
         }
 
-        // 发送消息（文字+文件）【最终修复版】
         async function fsxx() {
             let name = document.getElementById("mz").value.trim();
             let msg = document.getElementById("sr").value.trim();
             let fileInp = document.getElementById("file");
             let file = fileInp.files[0];
 
-            if (!name) return alert("请输入名字");
-            if (!msg && !file) return alert("请输入消息或选择文件");
+            if (!name) return alert("Please enter your name");
+            if (!msg && !file) return alert("Please enter a message or select a file");
 
             let file_url = null;
             let file_name = null;
@@ -62,7 +62,6 @@
                 let ext = file.name.split(".").pop();
                 let path = `${file_id}.${ext}`;
 
-                // 修复：完整错误捕获 + 上传配置
                 let { data: up, error: upErr } = await sgk.storage
                     .from("files")
                     .upload(path, file, {
@@ -72,21 +71,18 @@
                     });
 
                 if (upErr) {
-                    console.error("文件上传失败详情:", upErr);
-                    return alert(`文件上传失败：${upErr.message}\n请检查存储桶权限`);
+                    console.error("Upload error:", upErr);
+                    return alert(`File upload failed: ${upErr.message}`);
                 }
 
                 if (up) {
-                    // 修复：100%正确获取公开URL
                     let { data } = sgk.storage.from("files").getPublicUrl(up.path);
                     file_url = data.publicUrl;
                     file_name = file.name;
                     file_type = file.type;
-                    console.log("文件上传成功，URL:", file_url);
                 }
             }
 
-            // 修复：完整错误捕获
             let { error: insertErr } = await sgk.from("posts").insert([{
                 username: name,
                 content: msg,
@@ -97,8 +93,8 @@
             }]);
 
             if (insertErr) {
-                console.error("消息插入失败详情:", insertErr);
-                return alert(`消息发送失败：${insertErr.message}`);
+                console.error("Post error:", insertErr);
+                return alert(`Failed to post: ${insertErr.message}`);
             }
 
             document.getElementById("sr").value = "";
@@ -106,7 +102,6 @@
             setTimeout(() => loadMessages(), 300);
         }
 
-        // 实时监听
         sgk.channel('posts-channel')
             .on('postgres_changes', {
                 event: '*',
@@ -115,7 +110,6 @@
             }, () => loadMessages())
             .subscribe();
 
-        // 加载 + 自动清理
         async function loadMessages() {
             let { data, error: loadErr } = await sgk
                 .from("posts")
@@ -123,34 +117,29 @@
                 .order("id", { ascending: false });
 
             if (loadErr) {
-                console.error("加载消息失败:", loadErr);
+                console.error("Load error:", loadErr);
                 return;
             }
 
-            if (data.length > 30) {
-                let over = data.length - 30;
+            if (data.length > 50) {
+                let over = data.length - 50;
                 let { data: old, error: oldErr } = await sgk
                     .from("posts")
                     .select("id, file_url")
-                    .order("id", { ascending: true })
+                    .order("id", ascending: true)
                     .limit(over);
 
-                if (oldErr) {
-                    console.error("获取旧消息失败:", oldErr);
-                } else {
+                if (!oldErr) {
                     for (let item of old) {
                         if (item.file_url) {
-                            // 修复：终极路径提取，兼容所有URL格式
                             let path = item.file_url.split('/storage/v1/object/public/files/')[1] 
                                      || item.file_url.split("/files/")[1]
                                      || item.file_url.split('/object/public/files/')[1];
                             if (path) {
-                                let { error: delErr } = await sgk.storage.from("files").remove([path]);
-                                if (delErr) console.error("删除文件失败:", delErr);
+                                await sgk.storage.from("files").remove([path]);
                             }
                         }
                     }
-
                     let ids = old.map(x => x.id);
                     await sgk.from("posts").delete().in("id", ids);
                     ({ data } = await sgk.from("posts").select("*").order("id", { ascending: false }));
@@ -162,29 +151,28 @@
 
             data.forEach(item => {
                 let d = document.createElement("div");
-                d.style.border = "2px solid #000";
+                d.style.border = "1px solid #ddd";
                 d.style.borderRadius = "10px";
-                d.style.padding = "10px";
+                d.style.padding = "12px";
                 d.style.margin = "8px";
-                d.style.backgroundColor = "#f9f9f9";
+                d.style.backgroundColor = "#fff";
 
                 let head = document.createElement("div");
                 head.style.fontSize = "12px";
                 head.style.color = "#666";
                 head.style.marginBottom = "6px";
-                head.textContent = `${item.username} · ${fmt(item.created_at)}`;
+                head.textContent = `${item.username} • ${fmt(item.created_at)}`;
                 d.appendChild(head);
 
                 if (item.content) {
                     let ct = document.createElement("div");
                     ct.style.margin = "4px 0 8px 0";
-                    ct.style.lineHeight = "1.4";
+                    ct.style.lineHeight = "1.5";
                     ct.textContent = item.content;
                     d.appendChild(ct);
                 }
 
                 if (item.file_url) {
-                    // 区分图片/视频/其他文件
                     const isImage = item.file_type?.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp)$/i.test(item.file_name || "");
                     const isVideo = item.file_type?.startsWith("video/") || /\.(mp4|webm|ogg|mov)$/i.test(item.file_name || "");
 
@@ -197,12 +185,11 @@
                         img.onerror = function() {
                             this.style.display = 'none';
                             let errBox = document.createElement("div");
-                            errBox.textContent = "📎 图片加载失败，点击下载：" + item.file_name;
-                            errBox.style.color = "#999";
+                            errBox.textContent = "Image failed to load";
                             let dl = document.createElement("a");
                             dl.href = item.file_url;
                             dl.download = item.file_name;
-                            dl.textContent = "下载";
+                            dl.textContent = "Download";
                             dl.style.marginLeft = "8px";
                             dl.style.color = "#007bff";
                             errBox.appendChild(dl);
@@ -210,23 +197,21 @@
                         };
                         d.appendChild(img);
                     } else if (isVideo) {
-                        // 新增：视频播放器
                         let video = document.createElement("video");
                         video.src = item.file_url;
-                        video.controls = true; // 显示播放控件
-                        video.preload = "metadata"; // 预加载元数据
+                        video.controls = true;
+                        video.preload = "metadata";
                         video.style.maxWidth = "100%";
                         video.style.borderRadius = "6px";
                         video.style.marginTop = "4px";
                         video.onerror = function() {
                             this.style.display = 'none';
                             let errBox = document.createElement("div");
-                            errBox.textContent = "📎 视频加载失败，点击下载：" + item.file_name;
-                            errBox.style.color = "#999";
+                            errBox.textContent = "Video failed to load";
                             let dl = document.createElement("a");
                             dl.href = item.file_url;
                             dl.download = item.file_name;
-                            dl.textContent = "下载";
+                            dl.textContent = "Download";
                             dl.style.marginLeft = "8px";
                             dl.style.color = "#007bff";
                             errBox.appendChild(dl);
@@ -234,26 +219,25 @@
                         };
                         d.appendChild(video);
                     } else {
-                        // 其他文件：显示下载按钮
                         let fileBox = document.createElement("div");
                         fileBox.style.margin = "4px 0";
                         fileBox.style.display = "flex";
                         fileBox.style.justifyContent = "space-between";
                         fileBox.style.alignItems = "center";
-                        fileBox.style.padding = "6px 8px";
-                        fileBox.style.backgroundColor = "#f0f0f0";
+                        fileBox.style.padding = "8px 10px";
+                        fileBox.style.backgroundColor = "#f5f5f5";
                         fileBox.style.borderRadius = "6px";
                         
                         let name = document.createElement("span");
-                        name.textContent = "📎 " + (item.file_name || "未知文件");
+                        name.textContent = "📎 " + (item.file_name || "File");
                         fileBox.appendChild(name);
 
                         let dl = document.createElement("a");
                         dl.href = item.file_url;
                         dl.download = item.file_name || "file";
-                        dl.textContent = "下载";
-                        dl.style.padding = "4px 10px";
-                        dl.style.backgroundColor = "#000";
+                        dl.textContent = "Download";
+                        dl.style.padding = "5px 12px";
+                        dl.style.backgroundColor = "#007bff";
                         dl.style.color = "#fff";
                         dl.style.borderRadius = "6px";
                         dl.style.textDecoration = "none";
