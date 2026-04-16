@@ -1,99 +1,198 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>小鸟网站</title>
+    <title>小鸟论坛</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 </head>
 <body>
-    <div style="font-size: 35px;text-align:center;">🐦小鸟论坛</div>
+    <div style="font-size: 30px; text-align: center; margin: 10px 0;">🐦小鸟论坛</div>
     <hr>
 
-    <!-- 消息显示区域 -->
-    <div id="lk" style="margin-bottom:100px;"></div>
+    <div id="lk" style="margin-bottom: 120px;"></div>
 
-    <!-- 输入框固定在底部，不挡内容 -->
-    <div style="position:fixed;bottom:0;background:white;width:100%;padding:10px;box-sizing:border-box;">
-        <input id="mz" maxlength="10" placeholder="名字" style="width:100%;margin-bottom:5px;">
-        <textarea id="sr" maxlength="100" placeholder="说点什么..." style="width:100%;height:60px;"></textarea>
-        <button onclick="fsxx()" style="width:100%;padding:8px;">发送消息</button>
+    <div style="position: fixed; bottom: 0; background: white; width: 100%; padding: 10px; box-sizing: border-box;">
+        <input id="mz" maxlength="10" placeholder="输入名字" style="width: 100%; padding: 6px; margin-bottom: 5px;">
+        <textarea id="sr" maxlength="200" placeholder="输入消息..." style="width: 100%; height: 50px; padding: 6px;"></textarea>
+        
+        <div style="display: flex; gap: 5px; margin-top: 5px;">
+            <input type="file" id="file" style="flex: 1;">
+            <button onclick="fsxx()" style="padding: 6px 12px;">发送</button>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
-        const sgk = supabase.createClient("https://tyznbeynnxkweewgnour.supabase.co","sb_publishable_g0fn9M0IqZpVocj76y0rPw_IDKxkH2C")
+        const sgk = supabase.createClient(
+            "https://tyznbeynnxkweewgnour.supabase.co",
+            "sb_publishable_g0fn9M0IqZpVocj76y0rPw_IDKxkH2C"
+        );
 
-        async function fsxx() {
-            let sr = document.getElementById("sr")
-            let mz = document.getElementById("mz")
-            let name = mz.value.trim()
-            let msg = sr.value.trim()
-
-            if (!name || !msg) {
-                console.log("名字或内容不能为空")
-                return
-            }
-
-            // 发送
-            await sgk.from('posts').insert([{
-                username: name,
-                content: msg
-            }])
-
-            sr.value = "" // 清空输入框
-            loadMessages() // 发完立刻刷新
+        // 格式化时间
+        function fmt(t) {
+            let d = new Date(t);
+            return d.getFullYear() + "-" +
+                String(d.getMonth() + 1).padStart(2, '0') + "-" +
+                String(d.getDate()).padStart(2, '0') + " " +
+                String(d.getHours()).padStart(2, '0') + ":" +
+                String(d.getMinutes()).padStart(2, '0');
         }
 
-        // 实时监听新消息
+        // 发送消息（文字+文件）
+        async function fsxx() {
+            let name = document.getElementById("mz").value.trim();
+            let msg = document.getElementById("sr").value.trim();
+            let fileInp = document.getElementById("file");
+            let file = fileInp.files[0];
+
+            if (!name) return alert("请输入名字");
+            if (!msg && !file) return alert("请输入消息或选择文件");
+
+            let file_url = null;
+            let file_name = null;
+            let file_type = null;
+
+            if (file) {
+                let file_id = crypto.randomUUID();
+                let ext = file.name.split(".").pop();
+                let path = `${file_id}.${ext}`;
+
+                // 上传到 supabase storage
+                let { data: up } = await sgk.storage
+                    .from("files")
+                    .upload(path, file);
+
+                if (up) {
+                    let { data } = sgk.storage.from("files").getPublicUrl(up.path);
+                    file_url = data.publicUrl;
+                    file_name = file.name;
+                    file_type = file.type;
+                }
+            }
+
+            // 插入消息
+            await sgk.from("posts").insert([{
+                username: name,
+                content: msg,
+                file_url,
+                file_name,
+                file_type,
+                created_at: new Date().toISOString()
+            }]);
+
+            document.getElementById("sr").value = "";
+            fileInp.value = "";
+            loadMessages();
+        }
+
+        // 实时监听
         sgk.channel('posts-channel')
             .on('postgres_changes', {
                 event: 'INSERT',
                 schema: 'public',
                 table: 'posts'
-            }, () => {
-                loadMessages()
-            })
-            .subscribe()
+            }, () => loadMessages())
+            .subscribe();
 
-        // 加载消息
+        // 加载 + 自动清理旧消息（连带删文件）
         async function loadMessages() {
-            // 按 id 倒序 → 最新的在上面
-            const { data } = await sgk
-                .from('posts')
-                .select('*')
-                .order('id', { ascending: false })
+            let { data } = await sgk
+                .from("posts")
+                .select("*")
+                .order("id", { ascending: false });
 
+            // 超过30条，删除最早的，连带删文件
             if (data.length > 30) {
-                let over = data.length - 30
-                const { data: oldItems } = await sgk
-                    .from('posts')
-                    .select('id')
-                    .order('id', { ascending: true })
-                    .limit(over)
+                let over = data.length - 30;
+                let { data: old } = await sgk
+                    .from("posts")
+                    .select("id, file_url")
+                    .order("id", { ascending: true })
+                    .limit(over);
 
-                const ids = oldItems.map(item => item.id)
-                await sgk.from('posts').delete().in('id', ids)
+                // 删除文件
+                for (let item of old) {
+                    if (item.file_url) {
+                        let path = item.file_url.split("/files/")[1];
+                        if (path) await sgk.storage.from("files").remove([path]);
+                    }
+                }
 
-                // 删完重新获取
-                ({ data } = await sgk.from('posts').select('*').order('id', { ascending: false }))
+                // 删除消息
+                let ids = old.map(x => x.id);
+                await sgk.from("posts").delete().in("id", ids);
+
+                // 重新加载
+                ({ data } = await sgk.from("posts").select("*").order("id", { ascending: false }));
             }
 
-            let lk = document.getElementById("lk")
-            lk.innerHTML = ''
+            let box = document.getElementById("lk");
+            box.innerHTML = "";
 
             data.forEach(item => {
-                let div = document.createElement("div")
-                div.style.border = "2px solid black"
-                div.style.borderRadius = "10px"
-                div.style.padding = "8px"
-                div.style.margin = "5px"
-                div.style.wordBreak = "break-all"
-                div.textContent = item.username + "：" + item.content
-                lk.appendChild(div)
-            })
+                let d = document.createElement("div");
+                d.style.border = "2px solid #000";
+                d.style.borderRadius = "10px";
+                d.style.padding = "8px";
+                d.style.margin = "6px";
+
+                // 头部：用户名 + 时间
+                let head = document.createElement("div");
+                head.style.fontSize = "12px";
+                head.style.color = "#666";
+                head.textContent = `${item.username} · ${fmt(item.created_at)}`;
+                d.appendChild(head);
+
+                // 文字内容
+                if (item.content) {
+                    let ct = document.createElement("div");
+                    ct.style.margin = "4px 0";
+                    ct.textContent = item.content;
+                    d.appendChild(ct);
+                }
+
+                // 文件
+                if (item.file_url) {
+                    let isImage = item.file_type?.startsWith("image/");
+
+                    if (isImage) {
+                        let img = document.createElement("img");
+                        img.src = item.file_url;
+                        img.style.maxWidth = "100%";
+                        img.style.borderRadius = "6px";
+                        img.style.marginTop = "4px";
+                        d.appendChild(img);
+                    } else {
+                        let fileBox = document.createElement("div");
+                        fileBox.style.margin = "4px 0";
+                        fileBox.style.display = "flex";
+                        fileBox.style.justifyContent = "space-between";
+                        fileBox.style.alignItems = "center";
+                        
+                        let name = document.createElement("span");
+                        name.textContent = "📎 " + item.file_name;
+                        fileBox.appendChild(name);
+
+                        let dl = document.createElement("a");
+                        dl.href = item.file_url;
+                        dl.download = item.file_name;
+                        dl.textContent = "下载";
+                        dl.style.padding = "4px 8px";
+                        dl.style.backgroundColor = "#000";
+                        dl.style.color = "#fff";
+                        dl.style.borderRadius = "6px";
+                        dl.style.textDecoration = "none";
+                        fileBox.appendChild(dl);
+                        
+                        d.appendChild(fileBox);
+                    }
+                }
+
+                box.appendChild(d);
+            });
         }
 
-        // 刚打开页面就加载一次
-        loadMessages()
+        // 初始加载
+        loadMessages();
     </script>
 </body>
 </html>
