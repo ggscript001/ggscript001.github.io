@@ -23,14 +23,35 @@
             sy.style.borderRadius="10px"
             sy.style.wordBreak = "break-all"
             sy.textContent=mz+"："+st
-            //sgk.from('posts').insert([{username:mz,content:st}])
             if (st&&mz){
-                lk.appendChild(sy)
+                //lk.appendChild(sy)
+                sgk.from('posts').insert([{username:mz,content:st}])
             }else{
-                console.warn("禁止名字或输入内容空白")
+                console.log("禁止名字或输入内容空白")
             }
             sr.value=""
         }
+        setInterval(()=>{
+            sgk.from('posts').select('*').then(({data})=>{
+                data.forEach(item=>{
+                    let sy=document.createElement("div")
+                    item.appendChild(sy)
+                })
+            })
+        })
     </script>
 </body>
 </html>
+
+
+
+
+
+
+
+
+
+
+
+
+
