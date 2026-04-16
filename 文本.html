@@ -4,10 +4,27 @@
     <title>Birdie Forum</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
-        body { margin: 0; padding-bottom: 120px; background: #fff; }
-        #lk { min-height: 200px; }
-        img, video { max-width: 100%; height: auto; border-radius: 6px; }
-        video { background: #000; }
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            margin: 0;
+            padding-bottom: 140px;
+            background: #fff;
+        }
+        #lk {
+            min-height: 200px;
+        }
+        img, video {
+            max-width: 100%;
+            height: auto;
+            border-radius: 6px;
+            position: relative;
+            z-index: 1;
+        }
+        video {
+            background: #000;
+        }
     </style>
 </head>
 <body>
@@ -17,7 +34,9 @@
 
     <div id="lk"></div>
 
-    <div style="position:fixed; bottom:0; left:0; right:0; background:white; padding:10px; border-top:1px solid #eee;">
+    <!-- 底部发送栏，提高层级，保证不被视频盖住 -->
+    <div style="position:fixed; bottom:0; left:0; right:0; background:white; padding:10px;
+                border-top:1px solid #eee; z-index: 9999;">
         <input id="mz" placeholder="Your name" style="width:100%; padding:8px; margin-bottom:6px;">
         <textarea id="sr" placeholder="Your message..." style="width:100%; height:60px; padding:8px;"></textarea>
         <div style="display:flex; gap:8px; margin-top:6px;">
@@ -171,14 +190,12 @@
             });
         }
 
-        // 实时监听新消息
         sgk.channel('*')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, () => {
             loadMessages();
         })
         .subscribe();
 
-        // 首次加载
         loadMessages();
     </script>
 </body>
