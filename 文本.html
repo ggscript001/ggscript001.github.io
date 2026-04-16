@@ -90,13 +90,58 @@ function time(t) {
     return d.toLocaleString();
 }
 
+async function loadPosts() {
+    let { data } = await sup
+        .from("posts")
+        .select("*")
+        .order("id", { ascending: false });
+
+    let box = document.getElementById("lk");
+    box.innerHTML = "";
+
+    data.forEach(p => {
+        let d = document.createElement("div");
+        d.className = "post-item";
+
+        let h = document.createElement("div");
+        h.className = "post-header";
+        h.textContent = p.username + " • " + time(p.created_at);
+        d.appendChild(h);
+
+        if (p.content) {
+            let t = document.createElement("div");
+            t.textContent = p.content;
+            d.appendChild(t);
+        }
+
+        if (p.file_url) {
+            if (p.file_type?.startsWith("image/")) {
+                let img = document.createElement("img");
+                img.src = p.file_url;
+                d.appendChild(img);
+            } else if (p.file_type?.startsWith("video/")) {
+                let v = document.createElement("video");
+                v.src = p.file_url;
+                v.controls = true;
+                v.style.width = "100%";
+                v.setAttribute("playsinline", "true");
+                d.appendChild(v);
+            }
+        }
+
+        box.appendChild(d);
+    });
+}
+
 async function send() {
     let name = document.getElementById("mz").value.trim();
     let text = document.getElementById("sr").value.trim();
     let file = document.getElementById("file").files[0];
+
     if (!name || (!text && !file)) return;
 
     let url = null, name2 = null, type = null;
+
     if (file) {
         let id = crypto.randomUUID();
         let ext = file.name.split('.').pop();
@@ -121,46 +166,19 @@ async function send() {
     document.getElementById("file").value = "";
 }
 
-function load() {
-    sup.from("posts").select("*").order("id", { ascending: false }).then(res => {
-        let box = document.getElementById("lk");
-        box.innerHTML = "";
-        res.data.forEach(p => {
-            let d = document.createElement("div");
-            d.className = "post-item";
+// 只监听新消息，不疯狂刷新
+sup.channel("chat-channel")
+   .on("postgres_changes", {
+       event: "INSERT",
+       schema: "public",
+       table: "posts"
+   }, () => {
+       loadPosts();
+   })
+   .subscribe();
 
-            let h = document.createElement("div");
-            h.className = "post-header";
-            h.textContent = p.username + " • " + time(p.created_at);
-            d.appendChild(h);
-
-            if (p.content) {
-                let t = document.createElement("div");
-                t.textContent = p.content;
-                d.appendChild(t);
-            }
-
-            if (p.file_url) {
-                if (p.file_type?.startsWith("image/")) {
-                    let img = document.createElement("img");
-                    img.src = p.file_url;
-                    d.appendChild(img);
-                } else if (p.file_type?.startsWith("video/")) {
-                    let v = document.createElement("video");
-                    v.src = p.file_url;
-                    v.controls = true;
-                    v.style.width = "100%";
-                    v.setAttribute("playsinline", "true");
-                    d.appendChild(v);
-                }
-            }
-            box.appendChild(d);
-        });
-    });
-}
-
-sup.channel("x").on("postgres_changes", { event: "*", schema: "public", table: "posts" }, load).subscribe();
-load();
+// 页面打开加载一次
+loadPosts();
 </script>
 </body>
 </html>
