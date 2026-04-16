@@ -120,18 +120,17 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
-        const supabase = supabase.createClient(
+        // 修复：正确创建客户端
+        const sb = supabase.createClient(
             "https://tyznbeynnxkweewgnour.supabase.co",
             "sb_publishable_g0fn9M0IqZpVocj76y0rPw_IDKxkH2C"
         );
 
-        // 时间格式化
         function fmt(t) {
             const d = new Date(t);
             return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,0)}-${String(d.getDate()).padStart(2,0)} ${String(d.getHours()).padStart(2,0)}:${String(d.getMinutes()).padStart(2,0)}`;
         }
 
-        // 创建单条消息DOM
         function createPostEl(item) {
             const div = document.createElement("div");
             div.className = "post-item";
@@ -181,9 +180,8 @@
             return div;
         }
 
-        // 加载消息
         async function loadMessages() {
-            const { data, error } = await supabase
+            const { data, error } = await sb
                 .from('posts')
                 .select('*')
                 .order('id', { ascending: false });
@@ -194,13 +192,11 @@
             data.forEach(item => box.appendChild(createPostEl(item)));
         }
 
-        // 实时追加新消息
         function appendPost(item) {
             const box = document.getElementById("lk");
             box.insertBefore(createPostEl(item), box.firstChild);
         }
 
-        // 发送
         async function fsxx() {
             const name = document.getElementById("mz").value.trim();
             const msg = document.getElementById("sr").value.trim();
@@ -214,32 +210,31 @@
             if (file) {
                 const file_id = crypto.randomUUID();
                 const ext = file.name.split('.').pop();
-                const { data: up, error: upErr } = await supabase.storage
+                const { data: up, error: upErr } = await sb.storage
                     .from("files")
                     .upload(`${file_id}.${ext}`, file);
 
                 if (upErr) return alert("上传失败");
-                const { data } = supabase.storage.from("files").getPublicUrl(up.path);
+                const { data } = sb.storage.from("files").getPublicUrl(up.path);
                 file_url = data.publicUrl;
                 file_name = file.name;
                 file_type = file.type;
             }
 
-            const { error: insertErr } = await supabase.from("posts").insert([{
+            const { error: insertErr } = await sb.from("posts").insert([{
                 username: name, content: msg, file_url, file_name, file_type
             }]);
 
-            if (insertErr) return alert("发送失败");
+            if (insertErr) return alert("发送失败：" + insertErr.message);
 
             document.getElementById("sr").value = "";
             document.getElementById("file").value = "";
         }
 
-        // 实时监听
         let channel;
         function setupRealtime() {
-            if (channel) supabase.removeChannel(channel);
-            channel = supabase.channel('posts-channel')
+            if (channel) sb.removeChannel(channel);
+            channel = sb.channel('posts-channel')
                 .on('postgres_changes', {
                     event: 'INSERT',
                     schema: 'public',
@@ -250,7 +245,6 @@
                 .subscribe();
         }
 
-        // 启动
         document.addEventListener('DOMContentLoaded', () => {
             setupRealtime();
             loadMessages();
