@@ -18,7 +18,7 @@
             let sr=document.getElementById("sr"), mz=document.getElementById("mz").value.trim();
             let st=sr.value.trim()
             if (st&&mz){
-                sgk.from('posts').insert([{username:mz,content:st}])
+                await sgk.from('posts').insert([{username:mz,content:st}])
             }else{
                 console.log("禁止名字或输入内容空白")
             }
@@ -37,8 +37,9 @@
          .subscribe()
  // 把刷新逻辑单独写成函数
          async function loadMessages() {
-            sgk.from('posts').select('*').then(({data})=>{
+             const { data } = await sgk.from('posts').select('*')
                 if (data.length > 30) {
+                    let over = data.length - 30
                     // 1. 查最早的 over 条
                     const { data: oldItems } = await sgk
                     .from('posts')
@@ -52,9 +53,8 @@
                     .from('posts')
                     .delete()
                     .in('id', ids)
-                    
-                    let over = data.length - 30
                     data.splice(0, over) // 从头删掉 over 条
+                    { data } = await sgk.from('posts').select('*')
                 }
                 let lk=document.getElementById("lk")
                 lk.innerHTML = ''
@@ -68,7 +68,6 @@
                     sy.textContent=item.username+"："+item.content
                     lk.appendChild(sy)
                 })
-            })
          }
     </script>
 </body>
