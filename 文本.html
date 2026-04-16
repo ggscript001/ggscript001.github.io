@@ -15,16 +15,9 @@
     <script>
         const sgk=supabase.createClient("https://tyznbeynnxkweewgnour.supabase.co","sb_publishable_g0fn9M0IqZpVocj76y0rPw_IDKxkH2C")
         function fsxx() {
-            let sr=document.getElementById("sr"), lk=document.getElementById("lk"), mz=document.getElementById("mz").value.trim();
-            let sy=document.createElement("div"), st=sr.value.trim();
-            sy.style.width="280px"
-            sy.style.height="auto"
-            sy.style.border="2px solid black"
-            sy.style.borderRadius="10px"
-            sy.style.wordBreak = "break-all"
-            sy.textContent=mz+"："+st
+            let sr=document.getElementById("sr"), mz=document.getElementById("mz").value.trim();
+            let st=sr.value.trim()
             if (st&&mz){
-                //lk.appendChild(sy)
                 sgk.from('posts').insert([{username:mz,content:st}])
             }else{
                 console.log("禁止名字或输入内容空白")
@@ -33,15 +26,27 @@
         }
         setInterval(()=>{
             sgk.from('posts').select('*').then(({data})=>{
+                let lk=document.getElementById("lk")
+                lk.innerHTML = ''
                 data.forEach(item=>{
                     let sy=document.createElement("div")
-                    item.appendChild(sy)
+                    sy.style.width="280px"
+                    sy.style.height="auto"
+                    sy.style.border="2px solid black"
+                    sy.style.borderRadius="10px"
+                    sy.style.wordBreak = "break-all"
+                    sy.textContent=item.username+"："+item.content
+                    lk.appendChild(sy)
                 })
             })
-        })
+        },1000)
     </script>
 </body>
 </html>
+
+
+
+
 
 
 
