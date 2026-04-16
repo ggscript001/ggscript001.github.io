@@ -4,27 +4,25 @@
     <title>Birdie Forum</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
-        body { margin: 0; padding-bottom: 120px; background: #f7f7f7; font-family: Arial, sans-serif; }
+        body { margin: 0; padding-bottom: 120px; background: #fff; }
         #lk { min-height: 200px; }
-        img, video { max-width: 100% !important; height: auto !important; border-radius: 8px; }
+        img, video { max-width: 100%; height: auto; border-radius: 6px; }
         video { background: #000; }
     </style>
 </head>
 <body>
 
-    <div style="font-size: 32px; text-align: center; margin: 14px 0; font-weight: bold;">🐦 Birdie Forum</div>
-    <div style="text-align:center; color:#666; margin-bottom:10px;">Simple & Fast Public Chat</div>
+    <div style="font-size: 30px; text-align: center; margin: 10px 0;">🐦 Birdie Forum</div>
     <hr>
 
-    <div id="lk" style="margin-bottom: 120px;"></div>
+    <div id="lk"></div>
 
-    <div style="position: fixed; bottom: 0; background: white; width: 100%; padding: 10px; box-sizing: border-box; border-top: 1px solid #eee;">
-        <input id="mz" maxlength="16" placeholder="Your Name" style="width: 100%; padding: 9px; margin-bottom: 8px; box-sizing: border-box; border-radius:6px; border:1px solid #ddd;">
-        <textarea id="sr" maxlength="300" placeholder="Type your message..." style="width: 100%; height: 65px; padding: 9px; box-sizing: border-box; border-radius:6px; border:1px solid #ddd;"></textarea>
-        
-        <div style="display: flex; gap: 8px; margin-top: 8px;">
-            <input type="file" id="file" style="flex: 1; padding: 6px;">
-            <button onclick="fsxx()" style="padding: 10px 20px; background: #007bff; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight:bold;">Send</button>
+    <div style="position:fixed; bottom:0; left:0; right:0; background:white; padding:10px; border-top:1px solid #eee;">
+        <input id="mz" placeholder="Your name" style="width:100%; padding:8px; margin-bottom:6px;">
+        <textarea id="sr" placeholder="Your message..." style="width:100%; height:60px; padding:8px;"></textarea>
+        <div style="display:flex; gap:8px; margin-top:6px;">
+            <input type="file" id="file" style="flex:1;">
+            <button onclick="fsxx()" style="padding:8px 16px; background:#000; color:#fff; border:none; border-radius:6px; cursor:pointer;">Send</button>
         </div>
     </div>
 
@@ -38,10 +36,10 @@
         function fmt(t) {
             let d = new Date(t);
             return d.getFullYear() + "-" +
-                String(d.getMonth() + 1).padStart(2, '0') + "-" +
-                String(d.getDate()).padStart(2, '0') + " " +
-                String(d.getHours()).padStart(2, '0') + ":" +
-                String(d.getMinutes()).padStart(2, '0');
+                String(d.getMonth()+1).padStart(2,'0') + "-" +
+                String(d.getDate()).padStart(2,'0') + " " +
+                String(d.getHours()).padStart(2,'0') + ":" +
+                String(d.getMinutes()).padStart(2,'0');
         }
 
         async function fsxx() {
@@ -50,8 +48,8 @@
             let fileInp = document.getElementById("file");
             let file = fileInp.files[0];
 
-            if (!name) return alert("Please enter your name");
-            if (!msg && !file) return alert("Please enter a message or select a file");
+            if (!name) { alert("Please enter your name"); return; }
+            if (!msg && !file) { alert("Please enter a message or choose a file"); return; }
 
             let file_url = null;
             let file_name = null;
@@ -59,202 +57,129 @@
 
             if (file) {
                 let file_id = crypto.randomUUID();
-                let ext = file.name.split(".").pop();
-                let path = `${file_id}.${ext}`;
+                let ext = file.name.split('.').pop();
+                let path = file_id + '.' + ext;
 
                 let { data: up, error: upErr } = await sgk.storage
-                    .from("files")
-                    .upload(path, file, {
-                        cacheControl: '3600',
-                        upsert: false,
-                        contentType: file.type
-                    });
+                .from("files")
+                .upload(path, file, {
+                    cacheControl: '3600',
+                    upsert: false
+                });
 
                 if (upErr) {
-                    console.error("Upload error:", upErr);
-                    return alert(`File upload failed: ${upErr.message}`);
+                    console.error(upErr);
+                    alert("File upload failed");
+                    return;
                 }
 
-                if (up) {
-                    let { data } = sgk.storage.from("files").getPublicUrl(up.path);
-                    file_url = data.publicUrl;
-                    file_name = file.name;
-                    file_type = file.type;
-                }
+                let { data } = sgk.storage.from("files").getPublicUrl(up.path);
+                file_url = data.publicUrl;
+                file_name = file.name;
+                file_type = file.type;
             }
 
-            let { error: insertErr } = await sgk.from("posts").insert([{
+            const { error } = await sgk.from('posts').insert([{
                 username: name,
                 content: msg,
-                file_url,
-                file_name,
-                file_type,
-                created_at: new Date().toISOString()
+                file_url: file_url,
+                file_name: file_name,
+                file_type: file_type
             }]);
 
-            if (insertErr) {
-                console.error("Post error:", insertErr);
-                return alert(`Failed to post: ${insertErr.message}`);
+            if (error) {
+                console.error(error);
+                alert("Failed to send message");
+                return;
             }
 
             document.getElementById("sr").value = "";
             fileInp.value = "";
-            setTimeout(() => loadMessages(), 300);
         }
 
-        sgk.channel('posts-channel')
-            .on('postgres_changes', {
-                event: '*',
-                schema: 'public',
-                table: 'posts'
-            }, () => loadMessages())
-            .subscribe();
+        function loadMessages() {
+            sgk.from('posts')
+            .select('*')
+            .order('id', { ascending: false })
+            .then(res => {
+                let box = document.getElementById("lk");
+                box.innerHTML = "";
+                res.data.forEach(item => {
+                    let div = document.createElement("div");
+                    div.style.border = "1px solid #ddd";
+                    div.style.borderRadius = "8px";
+                    div.style.padding = "10px";
+                    div.style.margin = "8px";
 
-        async function loadMessages() {
-            let { data, error: loadErr } = await sgk
-                .from("posts")
-                .select("*")
-                .order("id", { ascending: false });
+                    let head = document.createElement("div");
+                    head.style.fontSize = "12px";
+                    head.style.color = "#666";
+                    head.textContent = item.username + " • " + fmt(item.created_at);
+                    div.appendChild(head);
 
-            if (loadErr) {
-                console.error("Load error:", loadErr);
-                return;
-            }
+                    if (item.content) {
+                        let content = document.createElement("div");
+                        content.style.margin = "6px 0";
+                        content.textContent = item.content;
+                        div.appendChild(content);
+                    }
 
-            if (data.length > 50) {
-                let over = data.length - 50;
-                let { data: old, error: oldErr } = await sgk
-                    .from("posts")
-                    .select("id, file_url")
-                    .order("id", ascending: true)
-                    .limit(over);
+                    if (item.file_url) {
+                        if (item.file_type?.startsWith("image/")) {
+                            let img = document.createElement("img");
+                            img.src = item.file_url;
+                            img.style.maxWidth = "100%";
+                            img.style.borderRadius = "6px";
+                            div.appendChild(img);
+                        } else if (item.file_type?.startsWith("video/")) {
+                            let video = document.createElement("video");
+                            video.src = item.file_url;
+                            video.controls = true;
+                            video.style.maxWidth = "100%";
+                            video.style.borderRadius = "6px";
+                            div.appendChild(video);
+                        } else {
+                            let fileWrap = document.createElement("div");
+                            fileWrap.style.display = "flex";
+                            fileWrap.style.justifyContent = "space-between";
+                            fileWrap.style.alignItems = "center";
+                            fileWrap.style.padding = "6px";
+                            fileWrap.style.backgroundColor = "#f5f5f5";
+                            fileWrap.style.borderRadius = "6px";
 
-                if (!oldErr) {
-                    for (let item of old) {
-                        if (item.file_url) {
-                            let path = item.file_url.split('/storage/v1/object/public/files/')[1] 
-                                     || item.file_url.split("/files/")[1]
-                                     || item.file_url.split('/object/public/files/')[1];
-                            if (path) {
-                                await sgk.storage.from("files").remove([path]);
-                            }
+                            let nameSpan = document.createElement("span");
+                            nameSpan.textContent = "📎 " + item.file_name;
+
+                            let dl = document.createElement("a");
+                            dl.href = item.file_url;
+                            dl.download = item.file_name;
+                            dl.textContent = "Download";
+                            dl.style.padding = "4px 10px";
+                            dl.style.backgroundColor = "#000";
+                            dl.style.color = "#fff";
+                            dl.style.borderRadius = "4px";
+                            dl.style.textDecoration = "none";
+
+                            fileWrap.appendChild(nameSpan);
+                            fileWrap.appendChild(dl);
+                            div.appendChild(fileWrap);
                         }
                     }
-                    let ids = old.map(x => x.id);
-                    await sgk.from("posts").delete().in("id", ids);
-                    ({ data } = await sgk.from("posts").select("*").order("id", { ascending: false }));
-                }
-            }
 
-            let box = document.getElementById("lk");
-            box.innerHTML = "";
-
-            data.forEach(item => {
-                let d = document.createElement("div");
-                d.style.border = "1px solid #ddd";
-                d.style.borderRadius = "10px";
-                d.style.padding = "12px";
-                d.style.margin = "8px";
-                d.style.backgroundColor = "#fff";
-
-                let head = document.createElement("div");
-                head.style.fontSize = "12px";
-                head.style.color = "#666";
-                head.style.marginBottom = "6px";
-                head.textContent = `${item.username} • ${fmt(item.created_at)}`;
-                d.appendChild(head);
-
-                if (item.content) {
-                    let ct = document.createElement("div");
-                    ct.style.margin = "4px 0 8px 0";
-                    ct.style.lineHeight = "1.5";
-                    ct.textContent = item.content;
-                    d.appendChild(ct);
-                }
-
-                if (item.file_url) {
-                    const isImage = item.file_type?.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp)$/i.test(item.file_name || "");
-                    const isVideo = item.file_type?.startsWith("video/") || /\.(mp4|webm|ogg|mov)$/i.test(item.file_name || "");
-
-                    if (isImage) {
-                        let img = document.createElement("img");
-                        img.src = item.file_url;
-                        img.style.maxWidth = "100%";
-                        img.style.borderRadius = "6px";
-                        img.style.marginTop = "4px";
-                        img.onerror = function() {
-                            this.style.display = 'none';
-                            let errBox = document.createElement("div");
-                            errBox.textContent = "Image failed to load";
-                            let dl = document.createElement("a");
-                            dl.href = item.file_url;
-                            dl.download = item.file_name;
-                            dl.textContent = "Download";
-                            dl.style.marginLeft = "8px";
-                            dl.style.color = "#007bff";
-                            errBox.appendChild(dl);
-                            d.appendChild(errBox);
-                        };
-                        d.appendChild(img);
-                    } else if (isVideo) {
-                        let video = document.createElement("video");
-                        video.src = item.file_url;
-                        video.controls = true;
-                        video.preload = "metadata";
-                        video.style.maxWidth = "100%";
-                        video.style.borderRadius = "6px";
-                        video.style.marginTop = "4px";
-                        video.onerror = function() {
-                            this.style.display = 'none';
-                            let errBox = document.createElement("div");
-                            errBox.textContent = "Video failed to load";
-                            let dl = document.createElement("a");
-                            dl.href = item.file_url;
-                            dl.download = item.file_name;
-                            dl.textContent = "Download";
-                            dl.style.marginLeft = "8px";
-                            dl.style.color = "#007bff";
-                            errBox.appendChild(dl);
-                            d.appendChild(errBox);
-                        };
-                        d.appendChild(video);
-                    } else {
-                        let fileBox = document.createElement("div");
-                        fileBox.style.margin = "4px 0";
-                        fileBox.style.display = "flex";
-                        fileBox.style.justifyContent = "space-between";
-                        fileBox.style.alignItems = "center";
-                        fileBox.style.padding = "8px 10px";
-                        fileBox.style.backgroundColor = "#f5f5f5";
-                        fileBox.style.borderRadius = "6px";
-                        
-                        let name = document.createElement("span");
-                        name.textContent = "📎 " + (item.file_name || "File");
-                        fileBox.appendChild(name);
-
-                        let dl = document.createElement("a");
-                        dl.href = item.file_url;
-                        dl.download = item.file_name || "file";
-                        dl.textContent = "Download";
-                        dl.style.padding = "5px 12px";
-                        dl.style.backgroundColor = "#007bff";
-                        dl.style.color = "#fff";
-                        dl.style.borderRadius = "6px";
-                        dl.style.textDecoration = "none";
-                        dl.style.fontSize = "14px";
-                        fileBox.appendChild(dl);
-                        
-                        d.appendChild(fileBox);
-                    }
-                }
-
-                box.appendChild(d);
+                    box.appendChild(div);
+                });
             });
         }
 
-        document.addEventListener('DOMContentLoaded', () => {
-            setTimeout(() => loadMessages(), 500);
-        });
+        // 实时监听新消息
+        sgk.channel('*')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, () => {
+            loadMessages();
+        })
+        .subscribe();
+
+        // 首次加载
+        loadMessages();
     </script>
 </body>
 </html>
