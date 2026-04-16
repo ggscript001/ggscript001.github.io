@@ -15,18 +15,6 @@
             font-family: Arial, sans-serif;
             padding-bottom: 140px;
         }
-        /* 终极兜底：底部遮罩，挡视频控件 */
-        body::after {
-            content: '';
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            height: 140px;
-            background: transparent;
-            z-index: 999998 !important;
-            pointer-events: none;
-        }
         #lk {
             min-height: 200px;
             padding: 0 10px;
@@ -35,12 +23,7 @@
             max-width: 100%;
             height: auto;
             border-radius: 6px;
-            position: relative;
-            z-index: 1 !important;
-            transform: translateZ(1px) !important;
-        }
-        video {
-            background: #000;
+            display: block;
         }
         .send-bar {
             position: fixed;
@@ -50,9 +33,7 @@
             background: #111;
             padding: 10px;
             border-top: 1px solid #333;
-            z-index: 999999 !important;
-            transform: translateZ(9999px) !important;
-            will-change: transform;
+            z-index: 999999;
         }
         input, textarea {
             width: 100%;
@@ -74,7 +55,6 @@
         }
         #file {
             flex: 1;
-            padding: 6px;
         }
         .send-btn {
             padding: 8px 20px;
@@ -83,8 +63,6 @@
             border: none;
             border-radius: 6px;
             cursor: pointer;
-            font-weight: bold;
-            font-size: 14px;
         }
         .post-item {
             border: 1px solid #333;
@@ -117,11 +95,11 @@
             color: #fff;
             border-radius: 4px;
             text-decoration: none;
-            font-size: 14px;
         }
     </style>
 </head>
 <body>
+
     <div style="font-size: 30px; text-align: center; margin: 14px 0; font-weight: bold;">🐦 Birdie Forum</div>
     <div style="font-size: 15px; text-align: center; margin: 14px 0; font-weight: bold;">Hypper Sandbox</div>
     <hr style="border-color: #333; margin: 0 10px;">
@@ -137,228 +115,168 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script>
-        const sgk = supabase.createClient(
-            "https://tyznbeynnxkweewgnour.supabase.co",
-            "sb_publishable_g0fn9M0IqZpVocj76y0rPw_IDKxkH2C"
-        );
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const sgk = supabase.createClient(
+    "https://tyznbeynnxkweewgnour.supabase.co",
+    "sb_publishable_g0fn9M0IqZpVocj76y0rPw_IDKxkH2C"
+);
 
-        function fmt(t) {
-            let d = new Date(t);
-            return d.getFullYear() + "-" +
-                String(d.getMonth()+1).padStart(2,'0') + "-" +
-                String(d.getDate()).padStart(2,'0') + " " +
-                String(d.getHours()).padStart(2,'0') + ":" +
-                String(d.getMinutes()).padStart(2,'0');
-        }
+function fmt(t) {
+    let d = new Date(t);
+    return d.getFullYear() + "-" +
+        String(d.getMonth()+1).padStart(2,'0') + "-" +
+        String(d.getDate()).padStart(2,'0') + " " +
+        String(d.getHours()).padStart(2,'0') + ":" +
+        String(d.getMinutes()).padStart(2,'0');
+}
 
-        async function fsxx() {
-            let name = document.getElementById("mz").value.trim();
-            let msg = document.getElementById("sr").value.trim();
-            let fileInp = document.getElementById("file");
-            let file = fileInp.files[0];
+async function fsxx() {
+    let name = document.getElementById("mz").value.trim();
+    let msg = document.getElementById("sr").value.trim();
+    let fileInp = document.getElementById("file");
+    let file = fileInp.files[0];
 
-            if (!name) { alert("Please enter your name"); return; }
-            if (!msg && !file) { alert("Please enter a message or select a file"); return; }
+    if (!name) { alert("Please enter your name"); return; }
+    if (!msg && !file) { alert("Please enter a message or select a file"); return; }
 
-            let file_url = null;
-            let file_name = null;
-            let file_type = null;
+    let file_url = null;
+    let file_name = null;
+    let file_type = null;
 
-            if (file) {
-                let file_id = crypto.randomUUID();
-                let ext = file.name.split('.').pop();
-                let path = `${file_id}.${ext}`;
+    if (file) {
+        let file_id = crypto.randomUUID();
+        let ext = file.name.split('.').pop();
+        let path = `${file_id}.${ext}`;
 
-                let { data: up, error: upErr } = await sgk.storage
-                .from("files")
-                .upload(path, file, {
-                    cacheControl: '3600',
-                    upsert: false,
-                    contentType: file.type
-                });
-
-                if (upErr) {
-                    console.error("Upload error:", upErr);
-                    alert(`File upload failed: ${upErr.message}`);
-                    return;
-                }
-
-                let { data } = sgk.storage.from("files").getPublicUrl(up.path);
-                file_url = data.publicUrl;
-                file_name = file.name;
-                file_type = file.type;
-            }
-
-            let { error: insertErr } = await sgk.from("posts").insert([{
-                username: name,
-                content: msg,
-                file_url,
-                file_name,
-                file_type,
-                created_at: new Date().toISOString()
-            }]);
-
-            if (insertErr) {
-                console.error("Post error:", insertErr);
-                alert(`Failed to send: ${insertErr.message}`);
-                return;
-            }
-
-            document.getElementById("sr").value = "";
-            fileInp.value = "";
-        }
-
-        function loadMessages() {
-            sgk.from('posts')
-            .select('*')
-            .order('id', { ascending: false })
-            .then(res => {
-                if (res.error) {
-                    console.error("Load error:", res.error);
-                    return;
-                }
-
-                let box = document.getElementById("lk");
-                box.innerHTML = "";
-
-                res.data.forEach(item => {
-                    let div = document.createElement("div");
-                    div.className = "post-item";
-
-                    let head = document.createElement("div");
-                    head.className = "post-header";
-                    head.textContent = `${item.username} • ${fmt(item.created_at)}`;
-                    div.appendChild(head);
-
-                    if (item.content) {
-                        let ct = document.createElement("div");
-                        ct.className = "post-content";
-                        ct.textContent = item.content;
-                        div.appendChild(ct);
-                    }
-
-                    if (item.file_url) {
-                        const isImage = item.file_type?.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp)$/i.test(item.file_name || "");
-                        const isVideo = item.file_type?.startsWith("video/") || /\.(mp4|webm|ogg|mov)$/i.test(item.file_name || "");
-
-                        if (isImage) {
-                            let img = document.createElement("img");
-                            img.src = item.file_url;
-                            img.alt = item.file_name;
-                            div.appendChild(img);
-                        } else if (isVideo) {
-                            // 方案2：点击才播放的视频，彻底防遮挡
-                            let videoContainer = document.createElement("div");
-                            videoContainer.style.position = "relative";
-                            videoContainer.style.width = "100%";
-                            videoContainer.style.borderRadius = "6px";
-                            videoContainer.style.overflow = "hidden";
-                            videoContainer.style.zIndex = "1";
-
-                            let video = document.createElement("video");
-                            video.src = item.file_url;
-                            video.controls = true;
-                            video.preload = "metadata";
-                            video.style.width = "100%";
-                            video.style.height = "auto";
-                            video.style.display = "none";
-                            video.setAttribute("webkit-playsinline", "true");
-                            video.setAttribute("playsinline", "true");
-                            video.setAttribute("x-webkit-airplay", "allow");
-
-                            let cover = document.createElement("div");
-                            cover.style.width = "100%";
-                            cover.style.aspectRatio = "16/9";
-                            cover.style.background = "#000";
-                            cover.style.borderRadius = "6px";
-                            cover.style.cursor = "pointer";
-                            cover.style.position = "relative";
-
-                            video.addEventListener('loadeddata', () => {
-                                let canvas = document.createElement("canvas");
-                                canvas.width = video.videoWidth;
-                                canvas.height = video.videoHeight;
-                                let ctx = canvas.getContext("2d");
-                                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                                cover.style.backgroundImage = `url(${canvas.toDataURL()})`;
-                                cover.style.backgroundSize = "cover";
-                                cover.style.backgroundPosition = "center";
-                            });
-
-                            let playBtn = document.createElement("div");
-                            playBtn.style.position = "absolute";
-                            playBtn.style.top = "50%";
-                            playBtn.style.left = "50%";
-                            playBtn.style.transform = "translate(-50%, -50%)";
-                            playBtn.style.width = "60px";
-                            playBtn.style.height = "60px";
-                            playBtn.style.borderRadius = "50%";
-                            playBtn.style.background = "rgba(0,0,0,0.7)";
-                            playBtn.style.display = "flex";
-                            playBtn.style.alignItems = "center";
-                            playBtn.style.justifyContent = "center";
-                            playBtn.innerHTML = "▶";
-                            playBtn.style.color = "#fff";
-                            playBtn.style.fontSize = "30px";
-                            cover.appendChild(playBtn);
-
-                            cover.addEventListener("click", () => {
-                                cover.style.display = "none";
-                                video.style.display = "block";
-                                video.play();
-                            });
-
-                            video.addEventListener("pause", () => {
-                                video.style.display = "none";
-                                cover.style.display = "block";
-                            });
-                            video.addEventListener("ended", () => {
-                                video.style.display = "none";
-                                cover.style.display = "block";
-                            });
-
-                            videoContainer.appendChild(cover);
-                            videoContainer.appendChild(video);
-                            div.appendChild(videoContainer);
-                        } else {
-                            let fileBox = document.createElement("div");
-                            fileBox.className = "file-box";
-
-                            let nameSpan = document.createElement("span");
-                            nameSpan.textContent = "📎 " + (item.file_name || "File");
-                            fileBox.appendChild(nameSpan);
-
-                            let dl = document.createElement("a");
-                            dl.className = "download-btn";
-                            dl.href = item.file_url;
-                            dl.download = item.file_name || "file";
-                            dl.textContent = "Download";
-                            fileBox.appendChild(dl);
-
-                            div.appendChild(fileBox);
-                        }
-                    }
-
-                    box.appendChild(div);
-                });
-            });
-        }
-
-        sgk.channel('posts-channel')
-        .on('postgres_changes', {
-            event: '*',
-            schema: 'public',
-            table: 'posts'
-        }, () => {
-            loadMessages();
-        })
-        .subscribe();
-
-        document.addEventListener('DOMContentLoaded', () => {
-            setTimeout(loadMessages, 300);
+        let { data: up, error: upErr } = await sgk.storage
+        .from("files")
+        .upload(path, file, {
+            cacheControl: '3600',
+            upsert: false,
+            contentType: file.type
         });
-    </script>
+
+        if (upErr) {
+            console.error("Upload error:", upErr);
+            alert(`Upload failed: ${upErr.message}`);
+            return;
+        }
+
+        let { data } = sgk.storage.from("files").getPublicUrl(up.path);
+        file_url = data.publicUrl;
+        file_name = file.name;
+        file_type = file.type;
+    }
+
+    let { error: insertErr } = await sgk.from("posts").insert([{
+        username: name,
+        content: msg,
+        file_url,
+        file_name,
+        file_type,
+        created_at: new Date().toISOString()
+    }]);
+
+    if (insertErr) {
+        console.error("Post error:", insertErr);
+        alert(`Send failed: ${insertErr.message}`);
+        return;
+    }
+
+    document.getElementById("sr").value = "";
+    fileInp.value = "";
+}
+
+function loadMessages() {
+    sgk.from('posts')
+    .select('*')
+    .order('id', { ascending: false })
+    .then(res => {
+        if (res.error) {
+            console.error(res.error);
+            return;
+        }
+
+        let box = document.getElementById("lk");
+        box.innerHTML = "";
+
+        res.data.forEach(item => {
+            let div = document.createElement("div");
+            div.className = "post-item";
+
+            let head = document.createElement("div");
+            head.className = "post-header";
+            head.textContent = `${item.username} • ${fmt(item.created_at)}`;
+            div.appendChild(head);
+
+            if (item.content) {
+                let ct = document.createElement("div");
+                ct.className = "post-content";
+                ct.textContent = item.content;
+                div.appendChild(ct);
+            }
+
+            if (item.file_url) {
+                const isImage = item.file_type?.startsWith("image/");
+                const isVideo = item.file_type?.startsWith("video/");
+
+                if (isImage) {
+                    let img = document.createElement("img");
+                    img.src = item.file_url;
+                    div.appendChild(img);
+                } else if (isVideo) {
+                    let video = document.createElement("video");
+                    video.src = item.file_url;
+                    video.style.width = "100%";
+                    video.style.borderRadius = "6px";
+
+                    // 关键：不用原生控件
+                    // video.controls = true;
+
+                    video.setAttribute("playsinline", "true");
+                    video.setAttribute("webkit-playsinline", "true");
+                    video.setAttribute("x5-video-player-type", "h5");
+                    video.setAttribute("x5-playsinline", "true");
+
+                    // 点击播放/暂停
+                    video.addEventListener("click", () => {
+                        if (video.paused) video.play();
+                        else video.pause();
+                    });
+
+                    div.appendChild(video);
+                } else {
+                    let fileBox = document.createElement("div");
+                    fileBox.className = "file-box";
+
+                    let nameSpan = document.createElement("span");
+                    nameSpan.textContent = "📎 " + (item.file_name || "File");
+                    fileBox.appendChild(nameSpan);
+
+                    let dl = document.createElement("a");
+                    dl.className = "download-btn";
+                    dl.href = item.file_url;
+                    dl.download = item.file_name;
+                    dl.textContent = "Download";
+                    fileBox.appendChild(dl);
+
+                    div.appendChild(fileBox);
+                }
+            }
+            box.appendChild(div);
+        });
+    });
+}
+
+sgk.channel('posts-channel')
+.on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, () => {
+    loadMessages();
+}).subscribe();
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadMessages();
+});
+</script>
 </body>
 </html>
