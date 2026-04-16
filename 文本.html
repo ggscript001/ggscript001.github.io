@@ -23,8 +23,6 @@
             max-width: 100%;
             height: auto;
             border-radius: 6px;
-            position: relative;
-            z-index: 1;
         }
         video {
             background: #000;
@@ -37,8 +35,7 @@
             background: #111;
             padding: 10px;
             border-top: 1px solid #333;
-            z-index: 999999 !important;
-            transform: translateZ(9999px);
+            z-index: 9999;
         }
         input, textarea {
             width: 100%;
@@ -68,9 +65,7 @@
             color: #fff;
             border: none;
             border-radius: 6px;
-            cursor: pointer;
             font-weight: bold;
-            font-size: 14px;
         }
         .post-item {
             border: 1px solid #333;
@@ -108,15 +103,15 @@
     </style>
 </head>
 <body>
-    <div style="font-size: 30px; text-align: center; margin: 14px 0; font-weight: bold;">🐦 Birdie Forum</div>
-    <div style="font-size: 15px; text-align: center; margin: 14px 0; font-weight: bold;">Hypper Sandbox</div>
-    <hr style="border-color: #333; margin: 0 10px;">
+    <div style="font-size:30px;text-align:center;margin:14px 0;font-weight:bold;">🐦 Birdie Forum</div>
+    <div style="font-size:15px;text-align:center;margin:14px 0;font-weight:bold;">Hypper Sandbox</div>
+    <hr style="border-color:#333;margin:0 10px;">
 
     <div id="lk"></div>
 
     <div class="send-bar">
         <input id="mz" placeholder="Your name" maxlength="16">
-        <textarea id="sr" placeholder="Type your message..." maxlength="300" style="height: 60px;"></textarea>
+        <textarea id="sr" placeholder="Type your message..." maxlength="300" style="height:60px;"></textarea>
         <div class="file-row">
             <input type="file" id="file">
             <button class="send-btn" onclick="fsxx()">Send</button>
@@ -125,61 +120,56 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
-        const sgk = supabase.createClient(
+        const supabase = supabase.createClient(
             "https://tyznbeynnxkweewgnour.supabase.co",
             "sb_publishable_g0fn9M0IqZpVocj76y0rPw_IDKxkH2C"
         );
 
+        // 时间格式化
         function fmt(t) {
-            let d = new Date(t);
-            return d.getFullYear() + "-" +
-                String(d.getMonth()+1).padStart(2,'0') + "-" +
-                String(d.getDate()).padStart(2,'0') + " " +
-                String(d.getHours()).padStart(2,'0') + ":" +
-                String(d.getMinutes()).padStart(2,'0');
+            const d = new Date(t);
+            return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,0)}-${String(d.getDate()).padStart(2,0)} ${String(d.getHours()).padStart(2,0)}:${String(d.getMinutes()).padStart(2,0)}`;
         }
 
-        // 单条消息DOM
+        // 创建单条消息DOM
         function createPostEl(item) {
-            let div = document.createElement("div");
+            const div = document.createElement("div");
             div.className = "post-item";
             div.dataset.id = item.id;
 
-            let head = document.createElement("div");
+            const head = document.createElement("div");
             head.className = "post-header";
             head.textContent = `${item.username} • ${fmt(item.created_at)}`;
             div.appendChild(head);
 
             if (item.content) {
-                let ct = document.createElement("div");
+                const ct = document.createElement("div");
                 ct.className = "post-content";
                 ct.textContent = item.content;
                 div.appendChild(ct);
             }
 
             if (item.file_url) {
-                const isImage = item.file_type?.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp)$/i.test(item.file_name || "");
-                const isVideo = item.file_type?.startsWith("video/") || /\.(mp4|webm|ogg|mov)$/i.test(item.file_name || "");
+                const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(item.file_name || "");
+                const isVideo = /\.(mp4|webm|ogg|mov)$/i.test(item.file_name || "");
 
                 if (isImage) {
-                    let img = document.createElement("img");
+                    const img = document.createElement("img");
                     img.src = item.file_url;
                     div.appendChild(img);
                 } else if (isVideo) {
-                    let video = document.createElement("video");
+                    const video = document.createElement("video");
                     video.src = item.file_url;
                     video.controls = true;
-                    video.preload = "metadata";
-                    video.setAttribute("webkit-playsinline", "true");
-                    video.setAttribute("playsinline", "true");
+                    video.playsInline = true;
                     div.appendChild(video);
                 } else {
-                    let fileBox = document.createElement("div");
+                    const fileBox = document.createElement("div");
                     fileBox.className = "file-box";
-                    let nameSpan = document.createElement("span");
+                    const nameSpan = document.createElement("span");
                     nameSpan.textContent = "📎 " + (item.file_name || "File");
                     fileBox.appendChild(nameSpan);
-                    let dl = document.createElement("a");
+                    const dl = document.createElement("a");
                     dl.className = "download-btn";
                     dl.href = item.file_url;
                     dl.download = item.file_name || "file";
@@ -191,112 +181,79 @@
             return div;
         }
 
-        // 加载所有消息
+        // 加载消息
         async function loadMessages() {
-            let { data, error } = await sgk.from('posts')
+            const { data, error } = await supabase
+                .from('posts')
                 .select('*')
                 .order('id', { ascending: false });
-            if (error) {
-                console.error("加载失败:", error);
-                return;
-            }
-            let box = document.getElementById("lk");
+
+            if (error) return console.error("加载失败", error);
+            const box = document.getElementById("lk");
             box.innerHTML = "";
             data.forEach(item => box.appendChild(createPostEl(item)));
         }
 
-        // 追加单条（实时用）
+        // 实时追加新消息
         function appendPost(item) {
-            let box = document.getElementById("lk");
+            const box = document.getElementById("lk");
             box.insertBefore(createPostEl(item), box.firstChild);
         }
 
         // 发送
         async function fsxx() {
-            let name = document.getElementById("mz").value.trim();
-            let msg = document.getElementById("sr").value.trim();
-            let fileInp = document.getElementById("file");
-            let file = fileInp.files[0];
+            const name = document.getElementById("mz").value.trim();
+            const msg = document.getElementById("sr").value.trim();
+            const file = document.getElementById("file").files[0];
 
-            if (!name) { alert("请输入昵称"); return; }
-            if (!msg && !file) { alert("请输入内容或选文件"); return; }
+            if (!name) return alert("请输入昵称");
+            if (!msg && !file) return alert("请输入内容或选择文件");
 
             let file_url = null, file_name = null, file_type = null;
+
             if (file) {
-                let file_id = crypto.randomUUID();
-                let ext = file.name.split('.').pop();
-                let { data: up, error: upErr } = await sgk.storage
-                    .from("files").upload(`${file_id}.${ext}`, file);
-                if (upErr) { alert("上传失败"); return; }
-                let { data } = sgk.storage.from("files").getPublicUrl(up.path);
+                const file_id = crypto.randomUUID();
+                const ext = file.name.split('.').pop();
+                const { data: up, error: upErr } = await supabase.storage
+                    .from("files")
+                    .upload(`${file_id}.${ext}`, file);
+
+                if (upErr) return alert("上传失败");
+                const { data } = supabase.storage.from("files").getPublicUrl(up.path);
                 file_url = data.publicUrl;
                 file_name = file.name;
                 file_type = file.type;
             }
 
-            let { error: insertErr } = await sgk.from("posts").insert([{
+            const { error: insertErr } = await supabase.from("posts").insert([{
                 username: name, content: msg, file_url, file_name, file_type
             }]);
-            if (insertErr) { alert("发送失败"); return; }
+
+            if (insertErr) return alert("发送失败");
 
             document.getElementById("sr").value = "";
-            fileInp.value = "";
+            document.getElementById("file").value = "";
         }
 
-        // ====================== 核心修复：稳定实时+自动重连 ======================
+        // 实时监听
         let channel;
         function setupRealtime() {
-            // 先移除旧通道（防止重复）
-            if (channel) sgk.removeChannel(channel);
-
-            channel = sgk.channel(`posts:${Date.now()}`, {
-                config: { broadcast: { ack: true }, presence: { key: 'forum' } }
-            });
-
-            channel
+            if (channel) supabase.removeChannel(channel);
+            channel = supabase.channel('posts-channel')
                 .on('postgres_changes', {
                     event: 'INSERT',
                     schema: 'public',
                     table: 'posts'
-                }, (payload) => {
-                    console.log("✅ 实时收到新消息:", payload.new);
-                    appendPost(payload.new); // 只追加，不刷新全页
+                }, payload => {
+                    appendPost(payload.new);
                 })
-                .on('postgres_changes', {
-                    event: 'DELETE',
-                    schema: 'public',
-                    table: 'posts'
-                }, () => {
-                    loadMessages();
-                })
-                .subscribe(async (status, err) => {
-                    console.log("📡 通道状态:", status);
-                    if (err) console.error("❌ 通道错误:", err);
-
-                    if (status === 'SUBSCRIBED') {
-                        console.log("✅ 已连接实时通道");
-                        await loadMessages(); // 连接成功再加载
-                    }
-
-                    // 断开/错误 → 3秒后自动重连
-                    if (['CLOSED', 'CHANNEL_ERROR'].includes(status)) {
-                        console.log("🔌 断开，3秒后重连...");
-                        setTimeout(setupRealtime, 3000);
-                    }
-                });
+                .subscribe();
         }
 
-        // 页面加载完成后再启动（解决竞态）
+        // 启动
         document.addEventListener('DOMContentLoaded', () => {
-            setTimeout(setupRealtime, 500); // 延迟500ms确保客户端就绪
-        });
-
-        // 页面可见时检查连接（防止后台休眠断连）
-        document.addEventListener('visibilitychange', () => {
-            if (!document.hidden) {
-                console.log("👁️ 页面激活，检查连接");
-                setupRealtime();
-            }
+            setupRealtime();
+            loadMessages();
         });
     </script>
 </body>
