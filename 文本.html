@@ -54,7 +54,7 @@
                     .delete()
                     .in('id', ids)
                     data.splice(0, over) // 从头删掉 over 条
-                    { data } = await sgk.from('posts').select('*')
+                    ({ data } = await sgk.from('posts').select('*'))
                 }
                 let lk=document.getElementById("lk")
                 lk.innerHTML = ''
