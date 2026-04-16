@@ -13,7 +13,6 @@
             background: #000;
             color: #fff;
             font-family: Arial, sans-serif;
-            /* 关键1：给body加足够的底部内边距，永远给发送栏留位置 */
             padding-bottom: 140px;
         }
         #lk {
@@ -24,14 +23,12 @@
             max-width: 100%;
             height: auto;
             border-radius: 6px;
-            /* 关键2：视频永远在下层 */
             position: relative;
             z-index: 1;
         }
         video {
             background: #000;
         }
-        /* 关键3：发送栏固定在最底层，层级拉满，永远不被挡 */
         .send-bar {
             position: fixed;
             bottom: 0;
@@ -40,8 +37,8 @@
             background: #111;
             padding: 10px;
             border-top: 1px solid #333;
-            /* 极致高层级，覆盖所有内容 */
             z-index: 999999 !important;
+            transform: translateZ(9999px);
         }
         input, textarea {
             width: 100%;
@@ -117,7 +114,6 @@
 
     <div id="lk"></div>
 
-    <!-- 底部发送栏 -->
     <div class="send-bar">
         <input id="mz" placeholder="Your name" maxlength="16">
         <textarea id="sr" placeholder="Type your message..." maxlength="300" style="height: 60px;"></textarea>
@@ -243,8 +239,13 @@
                             video.src = item.file_url;
                             video.controls = true;
                             video.preload = "metadata";
-                            // 额外防护：禁止视频悬浮层遮挡
                             video.style.zIndex = "1";
+                            
+                            // 核心修复：禁止视频跳出网页全屏
+                            video.setAttribute("webkit-playsinline", "true");
+                            video.setAttribute("playsinline", "true");
+                            video.setAttribute("x-webkit-airplay", "allow");
+                            
                             div.appendChild(video);
                         } else {
                             let fileBox = document.createElement("div");
@@ -270,7 +271,6 @@
             });
         }
 
-        // 实时监听
         sgk.channel('posts-channel')
         .on('postgres_changes', {
             event: '*',
@@ -281,7 +281,6 @@
         })
         .subscribe();
 
-        // 首次加载
         document.addEventListener('DOMContentLoaded', () => {
             setTimeout(loadMessages, 300);
         });
