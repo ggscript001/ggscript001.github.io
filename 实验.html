@@ -12,6 +12,21 @@
   <body>
     <div class="page" id="page1"></div>
     <script>
+      window.onerror = function(message, source, lineno, colno, error) {
+  // message: 错误的文字描述（比如 "Cannot read property 'style' of undefined"）
+  // source: 哪个文件出的错（比如你的 .html 文件名）
+  // lineno: 第几行出错了（最关键！直接告诉你哪一行崩了）
+  // colno: 第几列（一般不用管）
+  // error: 完整的错误对象
+
+          alert(`
+              错误信息：${message}
+              出错文件：${source}
+              行号：${lineno}
+          `);
+          return true; // 加了这个，浏览器就不会再偷偷报错了
+      };
+
       const sgk = supabase.createClient(
             "https://tyznbeynnxkweewgnour.supabase.co",
             "sb_publishable_g0fn9M0IqZpVocj76y0rPw_IDKxkH2C"
