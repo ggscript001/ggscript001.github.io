@@ -53,7 +53,7 @@
     .message { display: flex; margin: 10px 0; max-width: 70%; }
     .message.self { flex-direction: row-reverse; margin-left: auto; }
     .msg-avatar { width: 40px; height: 40px; border-radius: 50%; margin: 0 10px; object-fit: cover; }
-    .msg-content { background: white; padding: 10px 15px; border-radius: 18px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); max-width: 100%; }
+    .msg-content { background: white; padding: 10px 15px; border-radius: 18px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); max-width: 100%; word-wrap: break-word; }
     .message.self .msg-content { background: #0084ff; color: white; }
     .msg-time { font-size: 12px; color: #65676b; text-align: center; margin: 15px 0; }
     .chat-input-area { padding: 15px; border-top: 1px solid #e4e6eb; background: white; }
@@ -63,6 +63,7 @@
     .input-box { display: flex; gap: 10px; }
     .input-box input { flex: 1; margin: 0; }
     .input-box button { width: 80px; margin: 0; }
+    .char-count { font-size: 12px; color: #65676b; text-align: right; margin-top: 4px; }
 
     /* File Preview */
     .file-preview { max-width: 300px; border-radius: 12px; overflow: hidden; margin: 5px 0; }
@@ -140,9 +141,10 @@
             <input type="file" id="fileInput" style="display: none;" onchange="uploadFile(event)">
           </div>
           <div class="input-box">
-            <input id="msgInput" placeholder="Type a message" onkeydown="if(event.key==='Enter')sendMessage()">
+            <input id="msgInput" placeholder="Type a message (max 250 characters)" maxlength="250" onkeydown="if(event.key==='Enter')sendMessage()" oninput="updateCharCount()">
             <button onclick="sendMessage()">Send</button>
           </div>
+          <div class="char-count" id="charCount">0/250</div>
         </div>
       </div>
     </div>
@@ -155,7 +157,7 @@
       <h3>Search</h3>
     </div>
     <div class="search-box">
-      <input id="searchInput" placeholder="Enter user or group ID">
+      <input id="searchInput" placeholder="Enter user or group ID (max 50 characters)" maxlength="50">
       <button onclick="search()">Search</button>
     </div>
     <div class="search-result" id="searchResult"></div>
@@ -173,8 +175,8 @@
       </label>
       <input type="file" id="avatarInput" accept="image/*" class="hidden-input" onchange="uploadAvatar(event)">
       <p>Your ID: <span id="myId"></span></p>
-      <input id="profileName" placeholder="Nickname" oninput="updateProfile('name', this.value)">
-      <input id="profileSignature" placeholder="Bio" oninput="updateProfile('signature', this.value)">
+      <input id="profileName" placeholder="Nickname (max 50 characters)" maxlength="50" oninput="updateProfile('name', this.value)">
+      <input id="profileSignature" placeholder="Bio (max 50 characters)" maxlength="50" oninput="updateProfile('signature', this.value)">
       <button onclick="logout()" style="background: #f3425f;">Logout</button>
     </div>
   </div>
@@ -200,6 +202,16 @@
         sb.removeChannel(messageListener);
         messageListener = null;
       }
+    }
+
+    function sanitizeString(str) {
+      if (typeof str !== 'string') return '';
+      return str.replace(/[<>{}]/g, '');
+    }
+
+    function updateCharCount() {
+      const count = document.getElementById('msgInput').value.length;
+      document.getElementById('charCount').textContent = `${count}/250`;
     }
 
     // Generate Captcha
@@ -451,13 +463,16 @@
     }
 
     async function createGroup() {
-      const name = prompt('Enter group name:');
-      if (!name) return;
+      const name = prompt('Enter group name (max 50 characters):');
+      if (!name || name.length > 50) {
+        alert('Group name must be 1-50 characters');
+        return;
+      }
       
       const groupId = 'g' + Date.now();
       await sb.from('groups').insert([{
         group_id: groupId,
-        name,
+        name: sanitizeString(name),
         owner: currentUser,
         members: [currentUser]
       }]);
@@ -472,6 +487,9 @@
       document.getElementById('chatTitle').textContent = title;
       document.getElementById('chatMessages').innerHTML = '';
       
+      // 自动清理超过500条的旧消息
+      await autoCleanMessages(chatId);
+      
       const { data: messages } = await sb.from('messages').select('*').eq('chat_id', chatId).order('id', { ascending: true });
       for (const msg of messages) {
         addMessage(msg);
@@ -483,6 +501,25 @@
           addMessage(payload.new);
         })
         .subscribe();
+    }
+
+    async function autoCleanMessages(chatId) {
+      const { count } = await sb.from('messages').select('*', { count: 'exact' }).eq('chat_id', chatId);
+      if (count > 500) {
+        const deleteCount = count - 500;
+        const { data: toDelete } = await sb.from('messages').select('id, file_url').eq('chat_id', chatId).order('id', { ascending: true }).limit(deleteCount);
+        
+        // 删除文件
+        for (const msg of toDelete) {
+          if (msg.file_url) {
+            const filePath = msg.file_url.split('/birdie-files/')[1];
+            if (filePath) await sb.storage.from('birdie-files').remove([filePath]);
+          }
+        }
+        
+        // 删除消息记录
+        await sb.from('messages').delete().in('id', toDelete.map(m => m.id));
+      }
     }
 
     function addMessage(msg) {
@@ -517,8 +554,8 @@
 
     async function sendMessage() {
       const input = document.getElementById('msgInput');
-      const content = input.value.trim();
-      if (!content || !currentChat) return;
+      const content = sanitizeString(input.value.trim());
+      if (!content || !currentChat || content.length > 250) return;
       
       const { data: user } = await sb.from('users').select('name').eq('user_id', currentUser).single();
       await sb.from('messages').insert([{
@@ -530,12 +567,49 @@
       }]);
       
       input.value = '';
+      updateCharCount();
+    }
+
+    // ========== 存储桶容量管理 ==========
+    async function ensureBucketSpace(requiredMB) {
+      const MAX_SIZE = 500; // 桶总容量500MB
+      let totalSizeMB = 0;
+      
+      // 获取当前桶内所有文件大小
+      const { data: files } = await sb.storage.from('birdie-files').list();
+      for (const file of files) {
+        totalSizeMB += file.metadata.size / 1024 / 1024;
+      }
+      
+      // 计算剩余空间
+      const availableMB = MAX_SIZE - totalSizeMB;
+      
+      // 如果空间不足，删除最旧的文件直到有足够空间
+      if (availableMB < requiredMB) {
+        const neededMB = requiredMB - availableMB;
+        const { data: messages } = await sb.from('messages').select('id, file_url').not('file_url', 'is', null).order('id', { ascending: true });
+        
+        for (const msg of messages) {
+          if (!msg.file_url) continue;
+          const filePath = msg.file_url.split('/birdie-files/')[1];
+          const fileInfo = await sb.storage.from('birdie-files').getPublicUrl(filePath);
+          const sizeMB = (await fetch(fileInfo.publicUrl, { method: 'HEAD' })).headers.get('Content-Length') / 1024 / 1024;
+          
+          await sb.storage.from('birdie-files').remove([filePath]);
+          await sb.from('messages').delete().eq('id', msg.id);
+          
+          totalSizeMB -= sizeMB;
+          if (MAX_SIZE - totalSizeMB >= requiredMB) break;
+        }
+      }
     }
 
     // ========== File Upload Functions ==========
     async function uploadAvatar(event) {
       const file = event.target.files[0];
       if (!file) return;
+      
+      await ensureBucketSpace(file.size / 1024 / 1024);
       
       const fileExt = file.name.split('.').pop();
       const filePath = `avatars/${currentUser}.${fileExt}`;
@@ -559,6 +633,8 @@
       const file = event.target.files[0];
       if (!file || !currentChat) return;
       
+      await ensureBucketSpace(file.size / 1024 / 1024);
+      
       const { data: user } = await sb.from('users').select('name').eq('user_id', currentUser).single();
       const filePath = `chat/${currentChat.id}/${Date.now()}_${file.name}`;
       
@@ -574,7 +650,7 @@
         chat_id: currentChat.id,
         sender_id: currentUser,
         sender_name: user.name,
-        content: file.name,
+        content: sanitizeString(file.name),
         type: 'image',
         file_url: urlData.publicUrl
       }]);
@@ -586,6 +662,8 @@
       const file = event.target.files[0];
       if (!file || !currentChat) return;
       
+      await ensureBucketSpace(file.size / 1024 / 1024);
+      
       const { data: user } = await sb.from('users').select('name').eq('user_id', currentUser).single();
       const filePath = `chat/${currentChat.id}/${Date.now()}_${file.name}`;
       
@@ -601,7 +679,7 @@
         chat_id: currentChat.id,
         sender_id: currentUser,
         sender_name: user.name,
-        content: file.name,
+        content: sanitizeString(file.name),
         type: 'video',
         file_url: urlData.publicUrl
       }]);
@@ -613,6 +691,8 @@
       const file = event.target.files[0];
       if (!file || !currentChat) return;
       
+      await ensureBucketSpace(file.size / 1024 / 1024);
+      
       const { data: user } = await sb.from('users').select('name').eq('user_id', currentUser).single();
       const filePath = `chat/${currentChat.id}/${Date.now()}_${file.name}`;
       
@@ -628,7 +708,7 @@
         chat_id: currentChat.id,
         sender_id: currentUser,
         sender_name: user.name,
-        content: file.name,
+        content: sanitizeString(file.name),
         type: 'file',
         file_url: urlData.publicUrl
       }]);
@@ -647,7 +727,7 @@
     // ========== Search Functions ==========
     async function search() {
       const keyword = document.getElementById('searchInput').value.trim();
-      if (!keyword) return;
+      if (!keyword || keyword.length > 50) return;
       
       const result = document.getElementById('searchResult');
       result.innerHTML = '';
@@ -709,7 +789,9 @@
 
     // ========== Profile Functions ==========
     async function updateProfile(field, value) {
-      await sb.from('users').update({ [field]: value }).eq('user_id', currentUser);
+      const sanitizedValue = sanitizeString(value);
+      if (sanitizedValue.length > 50) return;
+      await sb.from('users').update({ [field]: sanitizedValue }).eq('user_id', currentUser);
     }
 
     // Initialize
