@@ -45,11 +45,8 @@
             "sb_publishable_g0fn9M0IqZpVocj76y0rPw_IDKxkH2C"
         );
 
-        // 后端接口（换成你自己的）
-        const API_URL = "https://tyznbeynnxkweewgnour.supabase.co/functions/v1/post-message";
-
         const BUCKET = "files";
-        const QUOTA_BYTES = 500 * 1024 * 1024;
+        const QUOTA_BYTES = 500 * 1024 * 1024; // 500MB
 
         async function listFiles() {
             const { data } = await sb.storage.from(BUCKET).list('', {
@@ -93,7 +90,10 @@
             const file_id = crypto.randomUUID();
             const ext = file.name.split('.').pop();
             const { data: up, error } = await sb.storage.from(BUCKET).upload(`${file_id}.${ext}`, file);
-            if (error) { alert(error.message); return null; }
+            if (error) {
+                alert("上传失败：" + error.message);
+                return null;
+            }
             const { data } = sb.storage.from(BUCKET).getPublicUrl(up.path);
             return data.publicUrl;
         }
@@ -153,7 +153,7 @@
 
         async function loadMessages() {
             const { data, error } = await sb.from("posts").select("*").order("id", { ascending: false });
-            if (error) return;
+            if (error) return console.error("加载失败", error);
             const box = document.getElementById("lk");
             box.innerHTML = "";
             data.forEach(item => box.appendChild(createPostEl(item)));
@@ -164,9 +164,7 @@
             box.insertBefore(createPostEl(item), box.firstChild);
         }
 
-        // ==============================================
-        // 这里是重点：发消息走后端，不再直接 insert 数据库
-        // ==============================================
+        // 原版发送逻辑，直接可用，没有多余接口
         async function fsxx() {
             const name = document.getElementById("mz").value.trim();
             const msg = document.getElementById("sr").value.trim();
@@ -175,39 +173,33 @@
             if (!name) return alert("请输入昵称");
             if (!msg && !file) return alert("请输入内容或选择文件");
 
-            if (file && file.size > 50 * 1024 * 1024) {
-                alert("文件不能超过 50MB");
-                return;
+            if (file) {
+                if (file.size > 50 * 1024 * 1024) {
+                    alert("文件不能超过 50MB");
+                    return;
+                }
             }
 
-            const ok = await checkAndCleanupBeforeUpload(file);
-            if (!ok) return alert("空间不足");
+            const canUpload = await checkAndCleanupBeforeUpload(file);
+            if (!canUpload) return alert("空间不足");
 
-            let file_url = null, file_name = null, file_type = null;
+            let file_url = null, file_name = null;
             if (file) {
                 file_url = await uploadFile(file);
                 if (!file_url) return;
                 file_name = file.name;
-                file_type = file.type;
             }
 
-            // ============== 安全版本：走接口 ==============
-            const res = await fetch(API_URL, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    username: name,
-                    content: msg,
-                    file_url,
-                    file_name,
-                    file_type
-                })
-            });
+            // 直接插入数据库，你原来的逻辑
+            const { error } = await sb.from("posts").insert([{
+                username: name,
+                content: msg,
+                file_url,
+                file_name
+            }]);
 
-            const result = await res.json();
-
-            if (!res.ok) {
-                alert("发送失败：" + (result.error || ""));
+            if (error) {
+                alert("发送失败：" + error.message);
                 return;
             }
 
