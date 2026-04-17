@@ -1,86 +1,112 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <style>
-    .captcha {
-      display: none;
-      padding: 20px;
-      border: 2px solid black;
-      border-radius: 10px;
-      margin: 10px;
-    }
+    .page { display: none; margin: 20px; }
+    canvas { border:2px solid #000; border-radius:10px; display: block; margin: 10px 0; }
+    input { padding: 6px; margin: 5px 0; width: 110px; }
+    button { padding: 8px 16px; margin-top: 10px; }
   </style>
 </head>
 <body>
 
-  <canvas class="captcha" id="captcha1" width="120" height="40"></canvas>
+  <!-- 第一页：三个验证码 + 一个按钮 -->
+  <div class="page" id="page1">
+    <h3>完成验证</h3>
 
-  <!-- JS 脚本不能写在 <style> 里！ -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <canvas id="cvs1" width="120" height="40"></canvas>
+    <input id="input1" placeholder="验证码1">
+
+    <canvas id="cvs2" width="120" height="40"></canvas>
+    <input id="input2" placeholder="验证码2">
+
+    <canvas id="cvs3" width="120" height="40"></canvas>
+    <input id="input3" placeholder="验证码3">
+
+    <br>
+    <button onclick="checkAll()">一键验证</button>
+  </div>
+
+  <!-- 第二页 -->
+  <div class="page" id="page2">
+    <h2>✅ 全部验证成功</h2>
+    <p>欢迎来到第二页</p>
+  </div>
+
   <script>
-    // 连接数据库
-    const sb = supabase.createClient(
-      "https://tyznbeynnxkweewgnour.supabase.co",
-      "sb_publishable_g0fn9M0IqZpVocj76y0rPw_IDKxkH2C"
-    );
-
-    // 错误1：id 是 captcha1，不是 captcha
-    const canvas = document.getElementById('captcha1');
-    const ctx = canvas.getContext('2d');
+    let code = {};
 
     // 随机字符
-    function randomChar() {
-      const str = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-      return str[Math.floor(Math.random() * str.length)];
+    function r() {
+      const s = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+      return s[Math.floor(Math.random() * s.length)];
     }
 
-    // 画干扰线
-    function drawLine() {
-      ctx.beginPath();
-      ctx.moveTo(Math.random() * canvas.width, Math.random() * canvas.height);
-      ctx.lineTo(Math.random() * canvas.width, Math.random() * canvas.height);
-      ctx.strokeStyle = `rgb(${Math.random()*255},${Math.random()*255},${Math.random()*255})`;
-      ctx.stroke();
-    }
-
-    // 生成验证码
-    function createCaptcha() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // 画验证码
+    function draw(n) {
+      const cvs = document.getElementById('cvs' + n);
+      const ctx = cvs.getContext('2d');
+      ctx.clearRect(0, 0, cvs.width, cvs.height);
+      let str = '';
 
       for (let i = 0; i < 4; i++) {
-        const char = randomChar();
+        const c = r();
+        str += c;
         const x = 20 + i * 25;
-        const y = 25 + Math.random() * 10;
+        const y = 25 + Math.random() * 8;
+        const rot = (Math.random() - 0.5) * 0.4;
 
-        const deg = (Math.random() - 0.5) * 0.4;
         ctx.save();
         ctx.translate(x, y);
-        ctx.rotate(deg);
-
+        ctx.rotate(rot);
         ctx.font = `${20 + Math.random() * 5}px bold Arial`;
-        ctx.fillStyle = `rgb(${Math.random()*200},${Math.random()*200},${Math.random()*200})`;
-        ctx.fillText(char, 0, 0);
-
+        ctx.fillStyle = `rgb(${Math.random()*180},${Math.random()*180},${Math.random()*180})`;
+        ctx.fillText(c, 0, 0);
         ctx.restore();
       }
 
-      for (let i = 0; i < 4; i++) drawLine();
+      // 干扰线
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath();
+        ctx.moveTo(Math.random()*cvs.width, Math.random()*cvs.height);
+        ctx.lineTo(Math.random()*cvs.width, Math.random()*cvs.height);
+        ctx.strokeStyle = `rgb(${Math.random()*255},${Math.random()*255},${Math.random()*255})`;
+        ctx.stroke();
+      }
+
+      code[n] = str;
     }
 
-    // 切换页面函数
-    function fanye(fys) {
-      let fy = document.querySelectorAll('.captcha')
-      fy.forEach(v => v.style.display = 'none')
-      document.getElementById("captcha" + fys).style.display = "block"
+    // 一键检查三个
+    function checkAll() {
+      const v1 = document.getElementById('input1').value.trim().toUpperCase();
+      const v2 = document.getElementById('input2').value.trim().toUpperCase();
+      const v3 = document.getElementById('input3').value.trim().toUpperCase();
+
+      if (v1 === code[1] && v2 === code[2] && v3 === code[3]) {
+        alert('全部正确，进入第二页！');
+        show(2);
+      } else {
+        alert('有错误，请重新输入');
+        // 错了就全部刷新
+        draw(1);
+        draw(2);
+        draw(3);
+      }
     }
 
-    // 先显示第1页
-    fanye(1)
-    // 再画验证码
-    createCaptcha();
+    // 页面切换
+    function show(...ids) {
+      document.querySelectorAll('.page').forEach(e => e.style.display = 'none');
+      ids.forEach(id => document.getElementById('page'+id).style.display = 'block');
+    }
 
-    // 点击刷新
-    canvas.onclick = createCaptcha;
+    // 初始化
+    draw(1);
+    draw(2);
+    draw(3);
+    show(1);
   </script>
 </body>
 </html>
