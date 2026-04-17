@@ -6,11 +6,17 @@
         display:none;
         text-align:center;
       }
+      .biku{
+        border:2px solid black;
+        border-radius:10px;
+      }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   </head>
   <body>
-    <div class="page" id="page1"></div>
+    <div class="page biku" id="page1" style="">🐦Birdie
+    <hr>
+    </div>
     <script>
       window.onerror = function(message, source, lineno, colno, error) {
   // message: 错误的文字描述（比如 "Cannot read property 'style' of undefined"）
@@ -38,6 +44,7 @@
           if (a[v]) a[v].style.display="block"
         })
       }
+      fys(1)
     </script>
   </body>
 </html>
