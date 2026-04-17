@@ -1,89 +1,86 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <style>
-       .captcha {
-          display: none;
-          padding: 20px;
-          border: 2px solid black;
-          border-radius: 10px;
-          margin: 10px;
-       }
-    </style>
-      <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  </head>
-  <body>
-    <canvas class="captcha" id="captcha1" width="120" height="40"></canvas>
-    <script>
-      //连接数据库
-      const sb = supabase.createClient(
-          "https://tyznbeynnxkweewgnour.supabase.co",
-          "sb_publishable_g0fn9M0IqZpVocj76y0rPw_IDKxkH2C"
-      );
+<head>
+  <style>
+    .captcha {
+      display: none;
+      padding: 20px;
+      border: 2px solid black;
+      border-radius: 10px;
+      margin: 10px;
+    }
+  </style>
+</head>
+<body>
 
-      const canvas = document.getElementById('captcha');
-      const ctx = canvas.getContext('2d');
+  <canvas class="captcha" id="captcha1" width="120" height="40"></canvas>
 
-      function randomChar() {
-          const str = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-          return str[Math.floor(Math.random() * str.length)];
+  <!-- JS 脚本不能写在 <style> 里！ -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    // 连接数据库
+    const sb = supabase.createClient(
+      "https://tyznbeynnxkweewgnour.supabase.co",
+      "sb_publishable_g0fn9M0IqZpVocj76y0rPw_IDKxkH2C"
+    );
+
+    // 错误1：id 是 captcha1，不是 captcha
+    const canvas = document.getElementById('captcha1');
+    const ctx = canvas.getContext('2d');
+
+    // 随机字符
+    function randomChar() {
+      const str = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+      return str[Math.floor(Math.random() * str.length)];
+    }
+
+    // 画干扰线
+    function drawLine() {
+      ctx.beginPath();
+      ctx.moveTo(Math.random() * canvas.width, Math.random() * canvas.height);
+      ctx.lineTo(Math.random() * canvas.width, Math.random() * canvas.height);
+      ctx.strokeStyle = `rgb(${Math.random()*255},${Math.random()*255},${Math.random()*255})`;
+      ctx.stroke();
+    }
+
+    // 生成验证码
+    function createCaptcha() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      for (let i = 0; i < 4; i++) {
+        const char = randomChar();
+        const x = 20 + i * 25;
+        const y = 25 + Math.random() * 10;
+
+        const deg = (Math.random() - 0.5) * 0.4;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(deg);
+
+        ctx.font = `${20 + Math.random() * 5}px bold Arial`;
+        ctx.fillStyle = `rgb(${Math.random()*200},${Math.random()*200},${Math.random()*200})`;
+        ctx.fillText(char, 0, 0);
+
+        ctx.restore();
       }
 
-      function drawLine() {
-          ctx.beginPath();
-          ctx.moveTo(Math.random() * canvas.width, Math.random() * canvas.height);
-          ctx.lineTo(Math.random() * canvas.width, Math.random() * canvas.height);
-          ctx.strokeStyle = `rgb(${Math.random()*255},${Math.random()*255},${Math.random()*255})`;
-          ctx.stroke();
-      }
+      for (let i = 0; i < 4; i++) drawLine();
+    }
 
-      function createCaptcha() {
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // 切换页面函数
+    function fanye(fys) {
+      let fy = document.querySelectorAll('.captcha')
+      fy.forEach(v => v.style.display = 'none')
+      document.getElementById("captcha" + fys).style.display = "block"
+    }
 
-          for (let i = 0; i < 4; i++) {
-              const char = randomChar();
-              const x = 20 + i * 25;
-              const y = 25 + Math.random() * 10;
+    // 先显示第1页
+    fanye(1)
+    // 再画验证码
+    createCaptcha();
 
-              const deg = (Math.random() - 0.5) * 0.4;
-              ctx.save();
-              ctx.translate(x, y);
-              ctx.rotate(deg);
-
-              ctx.font = `${20 + Math.random() * 5}px bold Arial`;
-              ctx.fillStyle = `rgb(${Math.random()*200},${Math.random()*200},${Math.random()*200})`;
-              ctx.fillText(char, 0, 0);
-
-              ctx.restore();
-          }
-
-          for (let i = 0; i < 4; i++) drawLine();
-      }
-
-      createCaptcha();
-      canvas.onclick = createCaptcha;
-
-      function fanye(fys){
-        let fy=document.querySelectorAll('.captcha')
-        fy.forEach(v=>v.style.display='none')
-        document.getElementById("captcha"+fys).style.display="block"
-      }
-      fanye(1)
-    </script>
-  </body>
+    // 点击刷新
+    canvas.onclick = createCaptcha;
+  </script>
+</body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
