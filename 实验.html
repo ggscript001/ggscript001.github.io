@@ -11,10 +11,11 @@
         border-radius:10px;
       }
     </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   </head>
   <body>
-    <div class="page biku" id="page1" style="width:75px;height:37px">🐦Birdie
+    <div class="page biku" id="page1" style="width:150px;height:75px">🐦Birdie
     <hr>
     </div>
     <script>
@@ -41,10 +42,10 @@
         let a=document.querySelectorAll('.page')
         a.forEach(v=>v.style.display="none")
         fyss.forEach(v=>{
-        a[v].style.display="block"
+        a[v-1].style.display="block"
         })
       }
-      fys(0)
+      fys(1)
     </script>
   </body>
 </html>
