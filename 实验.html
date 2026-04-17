@@ -1,10 +1,46 @@
 <!DOCTYPE html>
 <html>
   <head>
-    
+    <style>
+      <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+       .page {
+          display: none;
+          padding: 20px;
+          border: 2px solid black;
+          border-radius: 10px;
+          margin: 10px;
+       }
+    </style>
   </head>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <body>
-    
+    <div class="page" id="page1"></div>
+    <script>
+      //连接数据库
+      const sb = supabase.createClient(
+          "https://tyznbeynnxkweewgnour.supabase.co",
+          "sb_publishable_g0fn9M0IqZpVocj76y0rPw_IDKxkH2C"
+      );
+      //
+      function fanye(fys){
+        let fy=document.querySelectorAll('.page')
+        fy.forEach(v=>v.style.display='none')
+        document.getElementById("page"+fys).style.display="block"
+      }
+    </script>
   </body>
 </html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
