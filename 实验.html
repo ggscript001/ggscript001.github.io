@@ -40,20 +40,21 @@
             "sb_publishable_g0fn9M0IqZpVocj76y0rPw_IDKxkH2C"
       );
       async function zhdl(){
+        let seco = Math.floor(Date.now() / 1000)
         let {data}=await sgk.from('study').select('*')
+        //账号如果超过一天未登录将自动注销
+        for (let v=0;data.length>v;v++){
+          if (seco-data[v].time>86400){
+            await sgk.from('study').delete().eq('time',data[v].time)
+          }
+        }
         if (localStorage.getItem('BianHao')){
           //逻辑
         }else{
           let a=(data||[]).length+1
           localStorage.setItem('BianHao',a)
-          await sgk.from('study').insert([{name:"用户"+a,number:a}])
+          await sgk.from('study').insert([{name:"用户"+a,number:a,time:seco}])
         }
-        let seco = Math.floor(Date.now() / 1000)
-        data.forEach(v=>{
-          if (seco-data.time>86400){
-            sgk.from('study').delete([{time:0}])
-          }
-        })
       }
       function fys(...fyss){
         let a=document.querySelectorAll('.page')
