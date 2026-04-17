@@ -7,24 +7,24 @@
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { background: #000; color: #fff; font-family: Arial, sans-serif; padding-bottom: 140px; }
         #lk { min-height: 200px; padding: 0 10px; }
-        img, video { max-width: 100%; height: auto; border-radius: 6px; }
-        video { background: #000; }
-        .send-bar { position: fixed; bottom: 0; left: 0; right: 0; background: #111; padding: 10px; border-top: 1px solid #333; z-index: 9999; }
-        input, textarea { width: 100%; background: #222; color: #fff; border: 1px solid #444; border-radius: 6px; padding: 8px; margin-bottom: 8px; font-size: 14px; }
-        input::placeholder, textarea::placeholder { color: #888; }
-        .file-row { display: flex; gap: 8px; align-items: center; }
-        #file { flex: 1; padding: 6px; }
-        .send-btn { padding: 8px 20px; background: #007bff; color: #fff; border: none; border-radius: 6px; font-weight: bold; }
-        .post-item { border: 1px solid #333; border-radius: 8px; padding: 10px; margin: 8px 0; background: #111; }
-        .post-header { font-size: 12px; color: #888; margin-bottom: 6px; }
-        .post-content { margin: 6px 0; line-height: 1.5; }
-        .file-box { display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; background: #222; border-radius: 6px; margin-top: 4px; }
-        .download-btn { padding: 4px 10px; background: #007bff; color: #fff; border-radius: 4px; text-decoration: none; font-size: 14px; }
+        img, video { max-width:100%; height:auto; border-radius:6px; }
+        video { background:#000; }
+        .send-bar { position:fixed; bottom:0; left:0; right:0; background:#111; padding:10px; border-top:1px solid #333; z-index:9999; }
+        input, textarea { width:100%; background:#222; color:#fff; border:1px solid #444; border-radius:6px; padding:8px; margin-bottom:8px; font-size:14px; }
+        input::placeholder, textarea::placeholder { color:#888; }
+        .file-row { display:flex; gap:8px; align-items:center; }
+        #file { flex:1; padding:6px; }
+        .send-btn { padding:8px 20px; background:#007bff; color:#fff; border:none; border-radius:6px; font-weight:bold; }
+        .post-item { border:1px solid #333; border-radius:8px; padding:10px; margin:8px 0; background:#111; }
+        .post-header { font-size:12px; color:#888; margin-bottom:6px; }
+        .post-content { margin:6px 0; line-height:1.5; }
+        .file-box { display:flex; justify-content:space-between; align-items:center; padding:6px 8px; background:#222; border-radius:6px; margin-top:4px; }
+        .download-btn { padding:4px 10px; background:#007bff; color:#fff; border-radius:4px; text-decoration:none; font-size:14px; }
     </style>
 </head>
 <body>
     <div style="font-size:30px;text-align:center;margin:14px 0;font-weight:bold;">🐦 Birdie Forum</div>
-    <div style="font-size:15px;text-align:center;margin:14px 0;font-weight:bold;">Hypper Sandbox</div>
+    <div style="font-size:15px;text-align:center;margin:14px 0;">Hypper Sandbox</div>
     <hr style="border-color:#333;margin:0 10px;">
 
     <div id="lk"></div>
@@ -46,179 +46,118 @@
         );
 
         const BUCKET = "files";
-        const QUOTA_BYTES = 500 * 1024 * 1024; // 500MB
+        const MAX_POSTS = 50;    // 最多保留50条
+        const MAX_STORAGE = 500 * 1024 * 1024;
 
-        async function listFiles() {
-            const { data } = await sb.storage.from(BUCKET).list('', {
-                sortBy: { column: 'created_at', order: 'asc' }
-            });
-            return data || [];
+        // 清理多余帖子（超过50条删旧的）
+        async function cleanOldPosts() {
+            const { data } = await sb.from("posts")
+                .select("id")
+                .order("id", { ascending: false });
+
+            if (!data || data.length <= MAX_POSTS) return;
+
+            const toDelete = data.slice(MAX_POSTS).map(x => x.id);
+            await sb.from("posts").delete().in("id", toDelete);
         }
 
-        async function getBucketTotalSize() {
-            const files = await listFiles();
-            let total = 0;
-            files.forEach(f => total += f.metadata?.size || 0);
-            return total;
+        // 存储自动清理
+        async function getTotalSize() {
+            const { data } = await sb.storage.from(BUCKET).list('', { sortBy: { column: 'created_at', order: 'asc' } });
+            return (data || []).reduce((s, f) => s + (f.metadata?.size || 0), 0);
         }
 
-        async function checkAndCleanupBeforeUpload(file) {
+        async function cleanStorage(file) {
             if (!file) return true;
-            const fileSize = file.size;
-            const currentTotal = await getBucketTotalSize();
-            const willBeTotal = currentTotal + fileSize;
-            if (willBeTotal <= QUOTA_BYTES) return true;
+            const total = await getTotalSize();
+            const need = total + file.size - MAX_STORAGE;
+            if (need <= 0) return true;
 
-            let needFree = willBeTotal - QUOTA_BYTES;
-            const files = await listFiles();
-            let filesToDelete = [];
-
-            for (const f of files) {
-                if (needFree <= 0) break;
-                const size = f.metadata?.size || 0;
-                filesToDelete.push(f.name);
-                needFree -= size;
+            let { data } = await sb.storage.from(BUCKET).list('', { sortBy: { column: 'created_at', order: 'asc' } });
+            let rem = need;
+            const del = [];
+            for (const f of data || []) {
+                if (rem <= 0) break;
+                del.push(f.name);
+                rem -= f.metadata?.size || 0;
             }
-
-            if (filesToDelete.length === 0) return false;
-            const { error } = await sb.storage.from(BUCKET).remove(filesToDelete);
-            if (error) return false;
+            if (del.length) await sb.storage.from(BUCKET).remove(del);
             return true;
         }
 
-        async function uploadFile(file) {
-            const file_id = crypto.randomUUID();
+        // 上传文件
+        async function upload(file) {
+            const id = crypto.randomUUID();
             const ext = file.name.split('.').pop();
-            const { data: up, error } = await sb.storage.from(BUCKET).upload(`${file_id}.${ext}`, file);
-            if (error) {
-                alert("上传失败：" + error.message);
-                return null;
-            }
-            const { data } = sb.storage.from(BUCKET).getPublicUrl(up.path);
-            return data.publicUrl;
+            const { data, error } = await sb.storage.from(BUCKET).upload(`${id}.${ext}`, file);
+            if (error) return null;
+            return sb.storage.from(BUCKET).getPublicUrl(data.path).data.publicUrl;
         }
 
+        // 时间格式化
         function fmt(t) {
             const d = new Date(t);
             return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,0)}-${String(d.getDate()).padStart(2,0)} ${String(d.getHours()).padStart(2,0)}:${String(d.getMinutes()).padStart(2,0)}`;
         }
 
-        function createPostEl(item) {
+        // 创建帖子
+        function makeItem(p) {
             const div = document.createElement("div");
             div.className = "post-item";
-            div.dataset.id = item.id;
-
-            const head = document.createElement("div");
-            head.className = "post-header";
-            head.textContent = `${item.username} • ${fmt(item.created_at)}`;
-            div.appendChild(head);
-
-            if (item.content) {
-                const ct = document.createElement("div");
-                ct.className = "post-content";
-                ct.textContent = item.content;
-                div.appendChild(ct);
-            }
-
-            if (item.file_url) {
-                const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(item.file_name || "");
-                const isVideo = /\.(mp4|webm|ogg|mov)$/i.test(item.file_name || "");
-                if (isImage) {
-                    const img = document.createElement("img");
-                    img.src = item.file_url;
-                    div.appendChild(img);
-                } else if (isVideo) {
-                    const video = document.createElement("video");
-                    video.src = item.file_url;
-                    video.controls = true;
-                    video.playsInline = true;
-                    div.appendChild(video);
-                } else {
-                    const fileBox = document.createElement("div");
-                    fileBox.className = "file-box";
-                    const nameSpan = document.createElement("span");
-                    nameSpan.textContent = "📎 " + (item.file_name || "File");
-                    fileBox.appendChild(nameSpan);
-                    const dl = document.createElement("a");
-                    dl.className = "download-btn";
-                    dl.href = item.file_url;
-                    dl.download = item.file_name || "file";
-                    dl.textContent = "Download";
-                    fileBox.appendChild(dl);
-                    div.appendChild(fileBox);
-                }
+            div.innerHTML = `
+                <div class="post-header">${p.username} • ${fmt(p.created_at)}</div>
+                ${p.content ? `<div class="post-content">${p.content}</div>` : ''}
+            `;
+            if (p.file_url) {
+                const isImg = /\.(jpg|jpeg|png|gif|webp)$/i.test(p.file_name);
+                const isVid = /\.(mp4|webm|mov|ogg)$/i.test(p.file_name);
+                if (isImg) div.innerHTML += `<img src="${p.file_url}">`;
+                else if (isVid) div.innerHTML += `<video src="${p.file_url}" controls playsinline></video>`;
+                else div.innerHTML += `<div class="file-box"><span>📎 ${p.file_name}</span><a class="download-btn" href="${p.file_url}" download>Download</a></div>`;
             }
             return div;
         }
 
-        async function loadMessages() {
-            const { data, error } = await sb.from("posts").select("*").order("id", { ascending: false });
-            if (error) return console.error("加载失败", error);
+        // 加载
+        async function load() {
+            const { data } = await sb.from("posts").select("*").order("id", { ascending: false });
             const box = document.getElementById("lk");
             box.innerHTML = "";
-            data.forEach(item => box.appendChild(createPostEl(item)));
+            (data || []).forEach(p => box.appendChild(makeItem(p)));
         }
 
-        function appendPost(item) {
-            const box = document.getElementById("lk");
-            box.insertBefore(createPostEl(item), box.firstChild);
-        }
-
-        // 原版发送逻辑，直接可用，没有多余接口
+        // 发送
         async function fsxx() {
             const name = document.getElementById("mz").value.trim();
-            const msg = document.getElementById("sr").value.trim();
+            const content = document.getElementById("sr").value.trim();
             const file = document.getElementById("file").files[0];
 
             if (!name) return alert("请输入昵称");
-            if (!msg && !file) return alert("请输入内容或选择文件");
+            if (!content && !file) return alert("请输入内容或文件");
+            if (file && file.size > 50*1024*1024) return alert("文件≤50MB");
 
+            await cleanStorage(file);
+            let url = null, fname = null;
             if (file) {
-                if (file.size > 50 * 1024 * 1024) {
-                    alert("文件不能超过 50MB");
-                    return;
-                }
+                url = await upload(file);
+                fname = file.name;
             }
 
-            const canUpload = await checkAndCleanupBeforeUpload(file);
-            if (!canUpload) return alert("空间不足");
+            // 发帖子
+            await sb.from("posts").insert([{ username: name, content, file_url: url, file_name: fname }]);
 
-            let file_url = null, file_name = null;
-            if (file) {
-                file_url = await uploadFile(file);
-                if (!file_url) return;
-                file_name = file.name;
-            }
-
-            // 直接插入数据库，你原来的逻辑
-            const { error } = await sb.from("posts").insert([{
-                username: name,
-                content: msg,
-                file_url,
-                file_name
-            }]);
-
-            if (error) {
-                alert("发送失败：" + error.message);
-                return;
-            }
+            // 发完立刻清理到50条以内
+            await cleanOldPosts();
 
             document.getElementById("sr").value = "";
             document.getElementById("file").value = "";
+            load();
         }
 
-        let channel;
-        function setupRealtime() {
-            if (channel) sb.removeChannel(channel);
-            channel = sb.channel('posts-channel')
-                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' },
-                    payload => appendPost(payload.new))
-                .subscribe();
-        }
-
-        document.addEventListener('DOMContentLoaded', () => {
-            setupRealtime();
-            loadMessages();
+        // 实时
+        document.addEventListener("DOMContentLoaded", () => {
+            load();
+            sb.channel('c').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, () => load()).subscribe();
         });
     </script>
 </body>
