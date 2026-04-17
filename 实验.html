@@ -13,14 +13,56 @@
     </style>
   </head>
   <body>
-    <div class="page" id="page1"></div>
+      <canvas id="captcha" width="120" height="40"></canvas>
     <script>
       //连接数据库
       const sb = supabase.createClient(
           "https://tyznbeynnxkweewgnour.supabase.co",
           "sb_publishable_g0fn9M0IqZpVocj76y0rPw_IDKxkH2C"
       );
-      //
+
+      const canvas = document.getElementById('captcha');
+      const ctx = canvas.getContext('2d');
+
+      function randomChar() {
+          const str = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+          return str[Math.floor(Math.random() * str.length)];
+      }
+
+      function drawLine() {
+          ctx.beginPath();
+          ctx.moveTo(Math.random() * canvas.width, Math.random() * canvas.height);
+          ctx.lineTo(Math.random() * canvas.width, Math.random() * canvas.height);
+          ctx.strokeStyle = `rgb(${Math.random()*255},${Math.random()*255},${Math.random()*255})`;
+          ctx.stroke();
+      }
+
+      function createCaptcha() {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+          for (let i = 0; i < 4; i++) {
+              const char = randomChar();
+              const x = 20 + i * 25;
+              const y = 25 + Math.random() * 10;
+
+              const deg = (Math.random() - 0.5) * 0.4;
+              ctx.save();
+              ctx.translate(x, y);
+              ctx.rotate(deg);
+
+              ctx.font = `${20 + Math.random() * 5}px bold Arial`;
+              ctx.fillStyle = `rgb(${Math.random()*200},${Math.random()*200},${Math.random()*200})`;
+              ctx.fillText(char, 0, 0);
+
+              ctx.restore();
+          }
+
+          for (let i = 0; i < 4; i++) drawLine();
+      }
+
+createCaptcha();
+canvas.onclick = createCaptcha;
+
       function fanye(fys){
         let fy=document.querySelectorAll('.page')
         fy.forEach(v=>v.style.display='none')
