@@ -48,6 +48,12 @@
           localStorage.setItem('BianHao',a)
           await sgk.from('study').insert([{name:"用户"+a,number:a}])
         }
+        let seco = Math.floor(Date.now() / 1000)
+        data.forEach(v=>{
+          if (seco-data.time>86400){
+            sgk.from('study').delete([{time:0}])
+          }
+        })
       }
       function fys(...fyss){
         let a=document.querySelectorAll('.page')
