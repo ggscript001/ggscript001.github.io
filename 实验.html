@@ -1,62 +1,169 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
-    .page { display: none; margin: 20px; }
-    canvas { border:2px solid #000; border-radius:10px; display: block; margin: 10px 0; }
-    input { padding: 6px; margin: 5px 0; width: 110px; }
-    button { padding: 8px 16px; margin-top: 10px; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, sans-serif; }
+    .page { display: none; padding: 20px; }
+    canvas { border:2px solid #000; border-radius:10px; display: block; margin: 10px 0; cursor: pointer; }
+    input { padding: 8px; margin: 8px 0; width: 100%; border: 1px solid #ccc; border-radius: 6px; }
+    button { padding: 10px 16px; margin: 8px 0; border: none; border-radius: 6px; background: #2563eb; color: white; cursor: pointer; }
+    button:hover { background: #1d4ed8; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .chat-item { padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; margin: 8px 0; cursor: pointer; }
+    .chat-item:hover { background: #f3f4f6; }
+    .message { padding: 8px 12px; border-radius: 8px; margin: 6px 0; max-width: 80%; }
+    .message.self { background: #dbeafe; margin-left: auto; }
+    .message.other { background: #f3f4f6; margin-right: auto; }
+    .chat-input { position: fixed; bottom: 0; left: 0; right: 0; padding: 12px; background: white; border-top: 1px solid #e5e7eb; display: flex; gap: 8px; }
+    .chat-input input { margin: 0; flex: 1; }
+    .search-result { padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; margin: 8px 0; display: flex; justify-content: space-between; align-items: center; }
   </style>
 </head>
 <body>
 
-  <!-- 第一页：三个验证码 + 一个按钮 -->
+  <!-- 第1页：验证码 -->
   <div class="page" id="page1">
     <h3>完成验证</h3>
-
     <canvas id="cvs1" width="120" height="40"></canvas>
     <input id="input1" placeholder="验证码1">
-
     <canvas id="cvs2" width="120" height="40"></canvas>
     <input id="input2" placeholder="验证码2">
-
     <canvas id="cvs3" width="120" height="40"></canvas>
     <input id="input3" placeholder="验证码3">
-
     <br>
     <button onclick="checkAll()">一键验证</button>
   </div>
 
-  <!-- 第二页 -->
+  <!-- 第2页：群聊列表 -->
   <div class="page" id="page2">
-    <h2>✅ 全部验证成功</h2>
-    <p>欢迎来到第二页</p>
+    <div class="header">
+      <h3>我的群聊</h3>
+      <button onclick="show(4)">+ 加群</button>
+    </div>
+    <input id="userName" placeholder="设置你的昵称" oninput="updateName(this.value)">
+    <p>你的编号：<span id="myId"></span></p>
+    <div id="chatList"></div>
+  </div>
+
+  <!-- 第3页：聊天界面 -->
+  <div class="page" id="page3">
+    <div class="header">
+      <div>
+        <button onclick="leaveChat()">退出</button>
+        <button onclick="deleteChat()" style="background: #dc2626; margin-left: 8px;">解散</button>
+      </div>
+      <h4 id="chatTitle"></h4>
+    </div>
+    <div id="messages" style="padding-bottom: 70px;"></div>
+    <div class="chat-input">
+      <input id="msgInput" placeholder="输入消息" onkeydown="if(event.key==='Enter')sendMsg()">
+      <button onclick="sendMsg()">发送</button>
+    </div>
+  </div>
+
+  <!-- 第4页：搜索加群 -->
+  <div class="page" id="page4">
+    <div class="header">
+      <button onclick="show(2)">← 返回</button>
+      <h3>搜索群聊</h3>
+    </div>
+    <input id="searchInput" placeholder="输入群聊编号" oninput="searchChat(this.value)">
+    <div id="searchResult"></div>
   </div>
 
   <script>
-    let code = {};
+    // ========== 初始化Supabase ==========
+    const sb = supabase.createClient(
+      "https://tyznbeynnxkweewgnour.supabase.co",
+      "sb_publishable_g0fn9M0IqZpVocj76y0rPw_IDKxkH2C"
+    );
 
-    // 随机字符
+    let myId = localStorage.getItem('myId'); // 我的编号
+    let currentChat = null; // 当前打开的群聊
+    let code = {}; // 验证码
+    let chatListener = null; // 聊天实时监听
+
+    // ========== 工具函数 ==========
+    // 页面切换
+    function show(...ids) {
+      document.querySelectorAll('.page').forEach(e => e.style.display = 'none');
+      ids.forEach(id => document.getElementById('page'+id).style.display = 'block');
+      // 离开聊天页时关闭监听
+      if (!ids.includes(3) && chatListener) {
+        sb.removeChannel(chatListener);
+        chatListener = null;
+      }
+    }
+
+    // 清理超过1天未登录的用户
+    async function cleanOldUsers() {
+      const oneDayAgo = new Date(Date.now() - 24*60*60*1000).toISOString();
+      // 删除过期用户
+      await sb.from('study').delete().lt('time', oneDayAgo).not('encode', 'like', 'ql%');
+      // 清理这些用户所在的群聊
+      const { data: chats } = await sb.from('study').select('*').like('encode', 'ql%');
+      for (const chat of chats) {
+        const members = chat.encode.split('±').filter(Boolean);
+        const validMembers = [];
+        for (const m of members) {
+          const { data } = await sb.from('study').select('*').eq('encode', m).single();
+          if (data) validMembers.push(m);
+        }
+        if (validMembers.length <= 1) {
+          // 删除空群聊和消息
+          await sb.from('study').delete().eq('encode', chat.encode);
+        } else if (validMembers.length !== members.length) {
+          // 更新群聊成员
+          const newEncode = 'ql±' + validMembers.join('±') + '±';
+          await sb.from('study').update({ encode: newEncode }).eq('encode', chat.encode);
+        }
+      }
+    }
+
+    // ========== 用户登录逻辑 ==========
+    async function checkLogin() {
+      await cleanOldUsers(); // 先清理过期用户
+      if (myId) {
+        // 验证编号是否存在
+        const { data } = await sb.from('study').select('*').eq('encode', myId).single();
+        if (data) {
+          // 更新登录时间
+          await sb.from('study').update({ time: new Date().toISOString() }).eq('encode', myId);
+          document.getElementById('myId').textContent = myId;
+          document.getElementById('userName').value = data.name || '';
+          loadChatList();
+          listenChatList();
+          show(2);
+          return true;
+        } else {
+          localStorage.removeItem('myId');
+          myId = null;
+        }
+      }
+      show(1);
+      return false;
+    }
+
+    // ========== 验证码逻辑 ==========
     function r() {
       const s = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
       return s[Math.floor(Math.random() * s.length)];
     }
 
-    // 画验证码
     function draw(n) {
       const cvs = document.getElementById('cvs' + n);
       const ctx = cvs.getContext('2d');
       ctx.clearRect(0, 0, cvs.width, cvs.height);
       let str = '';
-
       for (let i = 0; i < 4; i++) {
         const c = r();
         str += c;
         const x = 20 + i * 25;
         const y = 25 + Math.random() * 8;
         const rot = (Math.random() - 0.5) * 0.4;
-
         ctx.save();
         ctx.translate(x, y);
         ctx.rotate(rot);
@@ -65,8 +172,6 @@
         ctx.fillText(c, 0, 0);
         ctx.restore();
       }
-
-      // 干扰线
       for (let i = 0; i < 3; i++) {
         ctx.beginPath();
         ctx.moveTo(Math.random()*cvs.width, Math.random()*cvs.height);
@@ -74,39 +179,180 @@
         ctx.strokeStyle = `rgb(${Math.random()*255},${Math.random()*255},${Math.random()*255})`;
         ctx.stroke();
       }
-
       code[n] = str;
     }
 
-    // 一键检查三个
-    function checkAll() {
+    async function checkAll() {
       const v1 = document.getElementById('input1').value.trim().toUpperCase();
       const v2 = document.getElementById('input2').value.trim().toUpperCase();
       const v3 = document.getElementById('input3').value.trim().toUpperCase();
-
       if (v1 === code[1] && v2 === code[2] && v3 === code[3]) {
-        alert('全部正确，进入第二页！');
+        // 统计已通过人数，生成新编号
+        const { data: users } = await sb.from('study').select('*').not('encode', 'like', 'ql%');
+        const newId = (users.length + 1).toString();
+        // 写入数据库
+        await sb.from('study').insert([{
+          name: '用户' + newId,
+          encode: newId,
+          time: new Date().toISOString()
+        }]);
+        // 保存到浏览器内存
+        localStorage.setItem('myId', newId);
+        myId = newId;
+        alert('验证成功！你的编号是：' + newId);
+        // 进入第二页
+        document.getElementById('myId').textContent = myId;
+        document.getElementById('userName').value = '用户' + newId;
+        loadChatList();
+        listenChatList();
         show(2);
       } else {
         alert('有错误，请重新输入');
-        // 错了就全部刷新
-        draw(1);
-        draw(2);
-        draw(3);
+        draw(1); draw(2); draw(3);
+        document.getElementById('input1').value = '';
+        document.getElementById('input2').value = '';
+        document.getElementById('input3').value = '';
       }
     }
 
-    // 页面切换
-    function show(...ids) {
-      document.querySelectorAll('.page').forEach(e => e.style.display = 'none');
-      ids.forEach(id => document.getElementById('page'+id).style.display = 'block');
+    // ========== 第二页：群聊列表 ==========
+    // 更新昵称
+    async function updateName(name) {
+      if (myId) {
+        await sb.from('study').update({ name }).eq('encode', myId);
+      }
     }
 
-    // 初始化
-    draw(1);
-    draw(2);
-    draw(3);
-    show(1);
+    // 加载群聊列表
+    async function loadChatList() {
+      const { data } = await sb.from('study').select('*').like('encode', `ql%±${myId}±%`);
+      const list = document.getElementById('chatList');
+      list.innerHTML = '';
+      data.forEach(chat => {
+        const div = document.createElement('div');
+        div.className = 'chat-item';
+        div.textContent = chat.encode;
+        div.onclick = () => openChat(chat.encode);
+        list.appendChild(div);
+      });
+    }
+
+    // 实时监听群聊列表变化
+    function listenChatList() {
+      sb.channel('chatList')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'study' }, () => {
+          loadChatList();
+        })
+        .subscribe();
+    }
+
+    // ========== 第三页：聊天界面 ==========
+    // 打开群聊
+    async function openChat(chatId) {
+      currentChat = chatId;
+      document.getElementById('chatTitle').textContent = chatId;
+      show(3);
+      // 加载历史消息
+      const { data } = await sb.from('study').select('*').eq('encode', chatId).order('id', { ascending: true });
+      const msgBox = document.getElementById('messages');
+      msgBox.innerHTML = '';
+      data.forEach(msg => {
+        const div = document.createElement('div');
+        div.className = `message ${msg.name === document.getElementById('userName').value ? 'self' : 'other'}`;
+        div.textContent = `${msg.name}: ${msg.text}`;
+        msgBox.appendChild(div);
+      });
+      msgBox.scrollTop = msgBox.scrollHeight;
+      // 实时监听新消息
+      chatListener = sb.channel('chat-' + chatId)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'study', filter: `encode=eq.${chatId}` }, payload => {
+          const msg = payload.new;
+          const div = document.createElement('div');
+          div.className = `message ${msg.name === document.getElementById('userName').value ? 'self' : 'other'}`;
+          div.textContent = `${msg.name}: ${msg.text}`;
+          document.getElementById('messages').appendChild(div);
+          document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+        })
+        .subscribe();
+    }
+
+    // 发送消息
+    async function sendMsg() {
+      const input = document.getElementById('msgInput');
+      const text = input.value.trim();
+      if (!text || !currentChat) return;
+      await sb.from('study').insert([{
+        name: document.getElementById('userName').value || '匿名',
+        text,
+        encode: currentChat,
+        time: new Date().toISOString()
+      }]);
+      input.value = '';
+    }
+
+    // 退出群聊
+    async function leaveChat() {
+      if (!currentChat) return;
+      // 从群聊编号中删除自己
+      const newEncode = currentChat.replace(`±${myId}±`, '±');
+      if (newEncode === 'ql±') {
+        // 只剩自己，直接删除群聊
+        await sb.from('study').delete().eq('encode', currentChat);
+      } else {
+        // 更新群聊成员
+        await sb.from('study').update({ encode: newEncode }).eq('encode', currentChat);
+      }
+      currentChat = null;
+      show(2);
+    }
+
+    // 解散群聊
+    async function deleteChat() {
+      if (!currentChat) return;
+      // 删除群聊和所有消息
+      await sb.from('study').delete().eq('encode', currentChat);
+      currentChat = null;
+      show(2);
+    }
+
+    // ========== 第四页：搜索加群 ==========
+    async function searchChat(keyword) {
+      if (!keyword) {
+        document.getElementById('searchResult').innerHTML = '';
+        return;
+      }
+      // 搜索包含关键词的群聊
+      const { data } = await sb.from('study').select('*').like('encode', `ql%${keyword}%`);
+      const result = document.getElementById('searchResult');
+      result.innerHTML = '';
+      data.forEach(chat => {
+        // 排除已经加入的群聊
+        if (chat.encode.includes(`±${myId}±`)) return;
+        const div = document.createElement('div');
+        div.className = 'search-result';
+        div.innerHTML = `
+          <span>${chat.encode}</span>
+          <button onclick="joinChat('${chat.encode}')">加入</button>
+        `;
+        result.appendChild(div);
+      });
+    }
+
+    // 加入群聊
+    async function joinChat(chatId) {
+      // 在群聊编号末尾添加自己的编号
+      const newEncode = chatId + myId + '±';
+      await sb.from('study').update({ encode: newEncode }).eq('encode', chatId);
+      alert('加入成功！');
+      show(2);
+    }
+
+    // ========== 初始化 ==========
+    draw(1); draw(2); draw(3);
+    document.getElementById('cvs1').onclick = () => draw(1);
+    document.getElementById('cvs2').onclick = () => draw(2);
+    document.getElementById('cvs3').onclick = () => draw(3);
+    checkLogin();
   </script>
 </body>
 </html>
