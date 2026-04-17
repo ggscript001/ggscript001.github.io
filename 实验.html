@@ -3,7 +3,7 @@
   <head>
     <style>
       <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-       .page {
+       .captcha {
           display: none;
           padding: 20px;
           border: 2px solid black;
@@ -13,7 +13,7 @@
     </style>
   </head>
   <body>
-      <canvas id="captcha" width="120" height="40"></canvas>
+    <canvas class="captcha" id="captcha1" width="120" height="40"></canvas>
     <script>
       //连接数据库
       const sb = supabase.createClient(
@@ -60,14 +60,15 @@
           for (let i = 0; i < 4; i++) drawLine();
       }
 
-createCaptcha();
-canvas.onclick = createCaptcha;
+      createCaptcha();
+      canvas.onclick = createCaptcha;
 
       function fanye(fys){
-        let fy=document.querySelectorAll('.page')
+        let fy=document.querySelectorAll('.captcha')
         fy.forEach(v=>v.style.display='none')
-        document.getElementById("page"+fys).style.display="block"
+        document.getElementById("captcha"+fys).style.display="block"
       }
+      fanye(1)
     </script>
   </body>
 </html>
