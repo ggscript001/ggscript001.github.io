@@ -34,8 +34,8 @@
           `);
           return true; // 加了这个，浏览器就不会再偷偷报错了
       };
-
-      const sgk = supabase.createClient(
+      const {createClient}=supabase
+      const sgk = createClient(
             "https://tyznbeynnxkweewgnour.supabase.co",
             "sb_publishable_g0fn9M0IqZpVocj76y0rPw_IDKxkH2C"
       );
@@ -56,9 +56,12 @@
         if (lqhc&&(scs==1)){
           //逻辑
         }else{
-          let a=(data||[]).length+1
-          localStorage.setItem('BianHao',a)
-          await sgk.from('study').insert([{name:"用户"+a,number:a,time:seco}])
+          let a=0
+          for (let v of data){
+            a=v.number
+          }
+          localStorage.setItem('BianHao',a+1)
+          await sgk.from('study').insert([{name:"用户"+a+1,number:a+1,time:seco}])
         }
       }
       function fys(...fyss){
@@ -72,11 +75,3 @@
     </script>
   </body>
 </html>
-
-
-
-
-
-
-
-
