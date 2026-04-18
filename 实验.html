@@ -39,7 +39,7 @@
             "https://tyznbeynnxkweewgnour.supabase.co",
             "sb_publishable_g0fn9M0IqZpVocj76y0rPw_IDKxkH2C"
       );
-      let data;
+      let data=[];
       function zifushu(str, char) {
         return (String(str).match(
           new RegExp(
@@ -50,34 +50,41 @@
       //清除只有一个人的群聊
       async function hylt(){
         for (let v of data){
-          
+          let na=v.number
+          if (!na) continue;
+          let zs=false;
+          try{
+            zs=Array.isArray(JSON.parse(na))
+            na=JSON.parse(na)
+            if (zs&&na.length<=1){
+              await sgk.from('study').delete().eq('number',JSON.stringify(na))
+            }
+          }catch{}
         }
+      }
+      async function cglj(kk){
+        var res = await sgk.from('study').select(kk)
+        data = res.data || []
       }
       async function zhdl(){
         let seco = Math.floor(Date.now() / 1000)
-        const res = await sgk.from('study').select('*')
-        data = res.data || []
+        await cglj('number,time')
         data.length && data.forEach(v=>{
           let num = parseInt(v.number)
-          if (isNaN(num)) v.number=0;
+          if (isNaN(num)) v.number="0";
         })
         let lqhc=localStorage.getItem('BianHao')
         //账号如果超过一天未登录将自动注销
-        for (let v=0;data.length>v;v++){
-          if (data[v].number==0) continue;
-          if (seco-data[v].time>86400){
-            await sgk.from('study').delete().eq('number',JSON.stringify(data[v].number))
-          }
-        }
+        await sgk.from('study').delete().lt('time', seco - 86400)
         if (lqhc&&data.some(v=>v.number==lqhc)){
           //逻辑
         }else{
           let a=0
           for (let v of data){
-            if (v.number>a) a=v.number;
+            if (parseInt(v.number)>a) a=parseInt(v.number);
           }
           localStorage.setItem('BianHao',a+1)
-          await sgk.from('study').insert([{name:"用户"+(a+1),number:a+1,time:seco}])
+          await sgk.from('study').insert([{name:"用户"+(a+1),number:a+1,time:seco}]).catch(err=>console.log("并发冲突，已自动跳过",err))
         }
       }
       function fys(...fyss){
@@ -89,19 +96,10 @@
       }
       setInterval(async v=>{
         const my=localStorage.getItem('BianHao')
-        my && await sgk.from('study').update({time:Math.floor(Date.now() / 1000)}).eq('number',JSON.stringify(my))
+        my && await sgk.from('study').update({time:Math.floor(Date.now() / 1000)}).eq('number',my)
       },1000*60*60*3)
       fys(1,2)
       zhdl()
     </script>
   </body>
 </html>
-
-
-
-
-
-
-
-
-
