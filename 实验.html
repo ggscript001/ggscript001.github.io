@@ -11,6 +11,11 @@
         border-radius:10px;
         padding: 20px;
       }
+      /* 聊天页样式 */
+      #page114514{
+        height:300px;
+        overflow-y:auto;
+      }
     </style>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -19,6 +24,12 @@
     <div class="page biku" id="page1" style="font-size:55px;width:335px;height:75px;line-height:75px;">🐦Birdie<hr>
     </div>
     <div class="page" id="page2"></div>
+
+    <textarea placeholder="输入内容"></textarea>
+    <div class="page" id="page114512">发送消息</div>
+    <div class="page" id="page114513" onclick="fys(1,2)">返回好友栏</div>
+    <div class="page" id="page114514"></div>
+    
     <script>
       window.onerror = function(message, source, lineno, colno, error) {
   // message: 错误的文字描述（比如 "Cannot read property 'style' of undefined"）
@@ -41,14 +52,48 @@
       );
       let data=[];
       function zifushu(str, char) {
+        //超级找字符粑粑
         return (String(str).match(
           new RegExp(
             char.replace(
               /[.*+?^${}|[\]\\]/g, '\\$&'), 
             'g')) || []).length;
       }
-      //清除只有一个人的群聊
+      async function qlhz(){
+        //好友栏
+        await cglj('number')
+        let cs=2
+        for (let v of data){
+          cs++
+          try{
+            let qlx=JSON.parse(v.number)
+            let qld=v.number
+            if (zifushu(qld,localStorage.getItem('BianHao'))){
+              let box = document.getElementById('page2')
+              box.innerHTML=''
+              box.innerHTML+=`<div style="font-size:15px;width:335px;height:20px;line-height:20px;" class="page biku" onclick="ltkdq(${qld},${cs})" id="page${cs}">${qld}</div>`
+            }
+          }catch{}
+        }
+      }
+      let ltsl=114514
+      //群聊消息加载
+      async function ltkdq(div,num){
+        fys(114514)
+        await cglj('name,text,number')
+        let wao = document.getElementById('page114514')
+        wao.innerHTML=''
+        for (let v of data){
+          try{
+            if (v.number)===div){
+              ltsl++
+              wao.innerHTML+=`<div style="font-size:15px;width:335px;height:20px;line-height:20px;" class="page biku" id="page${ltsl}">${v.name}：${v.text}</div>`
+            }
+          }catch{}
+        }
+      }
       async function hylt(){
+      //清除只有一个人的群聊
         for (let v of data){
           let na=v.number
           if (!na) continue;
@@ -63,10 +108,12 @@
         }
       }
       async function cglj(kk){
+        //刷新本地存储的数据库信息
         var res = await sgk.from('study').select(kk)
         data = res.data || []
       }
       async function zhdl(){
+        //账号加减系统
         let seco = Math.floor(Date.now() / 1000)
         await cglj('number,time')
         data.length && data.forEach(v=>{
@@ -86,15 +133,22 @@
           localStorage.setItem('BianHao',a+1)
           await sgk.from('study').insert([{name:"用户"+(a+1),number:a+1,time:seco}]).catch(err=>console.log("并发冲突，已自动跳过",err))
         }
+        await qlhz()
       }
       function fys(...fyss){
-        let a=document.querySelectorAll('.page')
-        a.forEach(v=>v.style.display="none")
-        fyss.forEach(v=>{
-        a[v-1].style.display="block"
-        })
+        //翻页
+      // 先隐藏所有.page
+          document.querySelectorAll('.page').forEach(item=>{
+              item.style.display="none"
+          })
+      // 再显示需要的页面
+          fyss.forEach(num=>{
+              let el = document.getElementById('page'+num)
+              if(el) el.style.display="block"
+          })
       }
-      setInterval(async v=>{
+      setInterval(async ()=>{
+        //防止傻缺的登录时间超过一天
         const my=localStorage.getItem('BianHao')
         my && await sgk.from('study').update({time:Math.floor(Date.now() / 1000)}).eq('number',my)
       },1000*60*60*3)
