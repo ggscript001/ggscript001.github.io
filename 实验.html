@@ -49,17 +49,13 @@
         })
         let lqhc=localStorage.getItem('BianHao')
         //账号如果超过一天未登录将自动注销
-        let scs=0
         for (let v=0;data.length>v;v++){
           if (data[v].number==0) continue;
           if (seco-data[v].time>86400){
             await sgk.from('study').delete().eq('number',data[v].number)
           }
-          if (data[v].number==lqhc){
-            scs=scs+1
-          }
         }
-        if (lqhc&&(scs==1)){
+        if (lqhc&&data.some(v=>v.number==lqhc)){
           //逻辑
         }else{
           let a=0
