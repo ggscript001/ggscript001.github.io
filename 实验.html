@@ -39,10 +39,24 @@
             "https://tyznbeynnxkweewgnour.supabase.co",
             "sb_publishable_g0fn9M0IqZpVocj76y0rPw_IDKxkH2C"
       );
+      let data;
+      function zifushu(str, char) {
+        return (String(str).match(
+          new RegExp(
+            char.replace(
+              /[.*+?^${}|[\]\\]/g, '\\$&'), 
+            'g')) || []).length;
+      }
+      //清除只有一个人的群聊
+      async function hylt(){
+        for (let v of data){
+          
+        }
+      }
       async function zhdl(){
         let seco = Math.floor(Date.now() / 1000)
-        let {data}=await sgk.from('study').select('*')
-        data=data||[]
+        const res = await sgk.from('study').select('*')
+        data = res.data || []
         data.length && data.forEach(v=>{
           let num = parseInt(v.number)
           if (isNaN(num)) v.number=0;
@@ -52,7 +66,7 @@
         for (let v=0;data.length>v;v++){
           if (data[v].number==0) continue;
           if (seco-data[v].time>86400){
-            await sgk.from('study').delete().eq('number',data[v].number)
+            await sgk.from('study').delete().eq('number',JSON.stringify(data[v].number))
           }
         }
         if (lqhc&&data.some(v=>v.number==lqhc)){
@@ -75,7 +89,7 @@
       }
       setInterval(async v=>{
         const my=localStorage.getItem('BianHao')
-        my && await sgk.from('study').update({time:Math.floor(Date.now() / 1000)}).eq('number',my)
+        my && await sgk.from('study').update({time:Math.floor(Date.now() / 1000)}).eq('number',JSON.stringify(my))
       },1000*60*60*3)
       fys(1,2)
       zhdl()
