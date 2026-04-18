@@ -42,12 +42,13 @@
       async function zhdl(){
         let seco = Math.floor(Date.now() / 1000)
         let {data}=await sgk.from('study').select('*')
+        data=data||[]
         let lqhc=localStorage.getItem('BianHao')
         //账号如果超过一天未登录将自动注销
         let scs=0
         for (let v=0;data.length>v;v++){
           if (seco-data[v].time>86400){
-            await sgk.from('study').delete().eq('time',data[v].time)
+            await sgk.from('study').delete().eq('number',data[v].number)
           }
           if (data[v].number==lqhc){
             scs=scs+1
@@ -58,7 +59,7 @@
         }else{
           let a=0
           for (let v of data){
-            a=v.number
+            if (v.number>a) a=v.number;
           }
           localStorage.setItem('BianHao',a+1)
           await sgk.from('study').insert([{name:"用户"+a+1,number:a+1,time:seco}])
@@ -72,6 +73,7 @@
         })
       }
       fys(1,2)
+      zhld()
     </script>
   </body>
 </html>
