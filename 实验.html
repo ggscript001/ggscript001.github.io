@@ -2,208 +2,160 @@
 <html>
 <head>
   <style>
-    .page{
-      display:none;
-      text-align:center;
-      margin: 8px auto;
-      max-width: 360px;
-    }
-    .biku{
-      border:2px solid black;
-      border-radius:10px;
-      padding: 12px;
-      margin: 8px;
-    }
-    #page3{
-      height:300px;
-      overflow-y:auto;
-      border:1px solid #333;
-      border-radius:8px;
-    }
-    #page6{
-      width: 90%;
-      height: 60px;
-    }
+    .page{display:none;text-align:center;margin:8px auto;max-width:360px;}
+    .biku{border:2px solid #000;border-radius:10px;padding:12px;margin:8px;cursor:pointer;}
+    #page3{height:300px;overflow:auto;border:1px solid #333;border-radius:8px;}
+    #page6{width:90%;height:60px;box-sizing:border-box;}
   </style>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
   <div class="page" id="page-3" onclick="fys(1,2)">返回好友栏</div>
-  <input type="text" placeholder="请输入好友/群聊编号" class="page biku" id="page-1">
-  <div class="page biku" id="page0" onclick="sshy()">搜索好友/群聊</div>
+  <input type="text" placeholder="输入好友编号" class="page biku" id="page-1">
+  <div class="page biku" id="page0" onclick="sshy()">搜索好友</div>
   <div class="page" id="page-2"></div>
 
-  <div class="page biku" id="page1" style="font-size:40px;padding:10px;">
+  <div class="page biku" id="page1">
     🐦Birdie
     <hr>
-    <div style="font-size:16px;margin-top:10px;" onclick="fys(-1,0,-2,-3)" class="biku">打开搜索</div>
+    <div onclick="fys(-1,0,-2,-3)" class="biku">打开搜索</div>
   </div>
   <div class="page" id="page2"></div>
 
-  <textarea class="page biku" id="page6" placeholder="输入内容"></textarea>
-  <div class="page biku" id="page5" onclick="fsdx()">发送消息</div>
-  <div class="page biku" id="page4" onclick="fys(1,2)">返回好友栏</div>
+  <textarea class="page biku" id="page6" placeholder="输入消息"></textarea>
+  <div class="page biku" id="page5" onclick="fsdx()">发送</div>
+  <div class="page biku" id="page4" onclick="fys(1,2)">返回</div>
   <div class="page" id="page3"></div>
 
   <script>
     const { createClient } = supabase;
-
     const sgk = createClient(
       "https://tyznbeynnxkweewgnour.supabase.co",
       "sb_publishable_IJ0ix_g7nAV_Nj9anibe9Q_w4gg0SBZ"
     );
 
-    let data = [];
-    let idname = "";
-    let xiaoxi = "";
+    let myId = null;
+    let userName = "";
+    let currentChat = "";
 
-    // 安全统计字符
-    function zifushu(str, char) {
-      if (!str) return 0;
-      const c = char.replace(/[.*+?^${}|[\]\\]/g, '\\$&');
-      return (String(str).match(new RegExp(c, 'g')) || []).length;
-    }
-
-    // 判断是不是用户ID（纯数字）
-    function isUserId(val) {
-      return !isNaN(Number(val)) && String(Number(val)) === String(val).trim();
-    }
-
-    // 刷新数据
-    async function cglj(kk) {
+    // 统一查询数据
+    async function getDB(columns) {
       try {
-        const { data: res, error } = await sgk.from('sugk').select(kk);
-        data = res || [];
-        if (error) console.error("查询错误", error);
-      } catch (e) {
-        data = [];
+        const { data } = await sgk.from('sugk').select(columns);
+        return data || [];
+      } catch (e) { return [] }
+    }
+
+    // 初始化系统计数器（仅创建1次）
+    async function initCounter() {
+      const data = await getDB('name,number');
+      const hasCounter = data.some(i => i.name === "系统计数");
+      if (!hasCounter) {
+        await sgk.from('sugk').insert([{ name: "系统计数", number: 0 }]);
       }
     }
 
-    // 登录注册：只统计纯数字用户，编号不再是1
-    async function zhdl() {
-      const now = Math.floor(Date.now() / 1000);
-      await cglj('number, time');
-      await sgk.from('sugk').delete().lt('time', now - 86400);
+    // 生成唯一新ID
+    async function getNewId() {
+      const data = await getDB('name,number');
+      const counter = data.find(i => i.name === "系统计数");
+      const newId = counter.number + 1;
+      await sgk.from('sugk').update({ number: newId }).eq('name', '系统计数');
+      return newId;
+    }
 
-      const localId = localStorage.getItem('BianHao');
-      let exists = false;
+    // 登录核心：本地ID → 查数据库是否存在 → 存在则用，不存在则新建
+    async function login() {
+      await initCounter();
+      // 1. 取本地存储的ID
+      const localId = localStorage.getItem('user_id');
+      const allUsers = await getDB('name,number');
 
       if (localId) {
-        for (const v of data) {
-          if (isUserId(v.number) && String(v.number) === localId) {
-            exists = true;
-            break;
-          }
+        // 2. 查数据库里有没有这个ID的用户
+        const userExist = allUsers.some(item => 
+          item.number == localId && item.name.startsWith('用户')
+        );
+        // 3. 存在 → 直接使用
+        if (userExist) {
+          myId = localId;
+          userName = `用户${myId}`;
+          await loadChatList();
+          return;
         }
       }
 
-      if (exists) {
-        idname = "用户" + localId;
-      } else {
-        let max = 0;
-        for (const v of data) {
-          if (isUserId(v.number)) {
-            const n = Number(v.number);
-            if (n > max) max = n;
-          }
-        }
-        const newId = max + 1;
-        localStorage.setItem('BianHao', newId);
-
-        await sgk.from('sugk').insert([{
-          name: "用户" + newId,
-          number: newId,
-          time: now
-        }]);
-        idname = "用户" + newId;
-      }
-      await qlhz();
+      // 4. 本地无ID / ID不存在 → 创建新账号
+      const newId = await getNewId();
+      myId = newId;
+      userName = `用户${myId}`;
+      localStorage.setItem('user_id', myId);
+      // 插入用户记录
+      await sgk.from('sugk').insert([{ name: userName, number: myId }]);
+      await loadChatList();
     }
 
-    // 搜索：只搜用户，不搜群
-    async function sshy() {
+    // 搜索好友
+    async function searchUser() {
       const kw = document.getElementById('page-1').value.trim();
       const box = document.getElementById('page-2');
       box.innerHTML = '';
       if (!kw) return;
-
-      await cglj('number');
-      const myId = localStorage.getItem('BianHao');
-      for (const v of data) {
-        if (isUserId(v.number) && v.number == kw && v.number != myId) {
-          box.innerHTML += `<div class="biku" onclick="tjhy(${v.number})">用户${v.number}</div>`;
-        }
-      }
+      const users = await getDB('name,number');
+      const target = users.find(u => u.number == kw && u.name.startsWith('用户') && u.number != myId);
+      if (target) box.innerHTML = `<div class="biku" onclick="addFriend(${target.number})">添加${target.name}</div>`;
     }
 
-    // 添加好友 = 创建群数组 [我, 对方]
-    async function tjhy(targetId) {
-      const myId = Number(localStorage.getItem('BianHao'));
-      const groupArr = [myId, targetId];
+    // 创建双人聊天（数组群号）
+    async function addFriend(targetId) {
+      const groupArr = [Number(myId), Number(targetId)].sort();
       const groupStr = JSON.stringify(groupArr);
-
-      await cglj('number');
-      const hasGroup = data.some(v => v.number === groupStr);
-
-      if (!hasGroup) {
-        await sgk.from('sugk').insert([{
-          name: "系统",
-          text: "聊天已创建",
-          number: groupStr
-        }]);
+      const data = await getDB('number');
+      const hasChat = data.some(i => i.number === groupStr);
+      if (!hasChat) {
+        await sgk.from('sugk').insert([{ name: "系统", text: "聊天已创建", number: groupStr }]);
       }
-
-      fys(1, 2);
-      await qlhz();
+      fys(1,2);
+      await loadChatList();
     }
 
-    // 群列表：只显示包含自己的数组群
-    async function qlhz() {
-      await cglj('number');
+    // 加载聊天列表（只显示数组群聊，杜绝乱弹1）
+    async function loadChatList() {
+      const data = await getDB('number,name');
       const box = document.getElementById('page2');
       box.innerHTML = '';
-      const myId = localStorage.getItem('BianHao');
-
-      for (const v of data) {
+      for (let item of data) {
         try {
-          const arr = JSON.parse(v.number);
+          const arr = JSON.parse(item.number);
           if (Array.isArray(arr) && arr.includes(Number(myId))) {
-            box.innerHTML += `<div class="biku" onclick="ltkdq('${v.number}')">聊天${v.number}</div>`;
+            box.innerHTML += `<div class="biku" onclick="openChat('${item.number}')">聊天${item.number}</div>`;
           }
-        } catch {}
+        } catch (e) {}
       }
     }
 
-    // 进入聊天
-    async function ltkdq(no) {
-      await cglj('name,text,number');
+    // 打开聊天窗口
+    async function openChat(chatId) {
+      currentChat = chatId;
+      const data = await getDB('name,text,number');
       const box = document.getElementById('page3');
       box.innerHTML = '';
-
-      for (const v of data) {
-        if (v.number === no) {
-          box.innerHTML += `<div class="biku">${v.name}：${v.text}</div>`;
+      for (let item of data) {
+        if (item.number === chatId && item.text) {
+          box.innerHTML += `<div class="biku">${item.name}：${item.text}</div>`;
         }
       }
-
-      xiaoxi = no;
       fys(3,4,5,6);
       box.scrollTop = box.scrollHeight;
     }
 
-    // 发消息
-    async function fsdx() {
+    // 发送消息
+    async function sendMsg() {
       const txt = document.getElementById('page6').value.trim();
-      if (!txt || !xiaoxi) return;
-
-      await sgk.from('sugk').insert([{
-        name: idname,
-        text: txt,
-        number: xiaoxi
-      }]);
-      await ltkdq(xiaoxi);
+      if (!txt || !currentChat) return;
+      await sgk.from('sugk').insert([{ name: userName, text: txt, number: currentChat }]);
+      await openChat(currentChat);
       document.getElementById('page6').value = '';
     }
 
@@ -211,21 +163,21 @@
     function fys(...list) {
       document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
       list.forEach(n => {
-        const el = document.getElementById('page' + n);
+        const el = document.getElementById(`page${n}`);
         if (el) el.style.display = 'block';
       });
     }
 
-    // 心跳
-    setInterval(async () => {
-      const myId = localStorage.getItem('BianHao');
-      if (!myId) return;
-      await sgk.from('sugk').update({ time: Math.floor(Date.now()/1000) }).eq('number', myId);
-    }, 3600000);
+    // 绑定函数名（对应HTML onclick）
+    window.sshy = searchUser;
+    window.tjhy = addFriend;
+    window.ltkdq = openChat;
+    window.fsdx = sendMsg;
+    window.fys = fys;
 
     // 启动
     fys(1,2);
-    zhdl();
+    login();
   </script>
 </body>
 </html>
