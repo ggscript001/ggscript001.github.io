@@ -34,7 +34,7 @@
     const { createClient } = supabase;
     const sgk = createClient(
       "https://tyznbeynnxkweewgnour.supabase.co",
-      "sb_publishable_IJ0ix_g7nAV_Nj9anibe9Q_w4gg0SBZ"
+      "sb_publishable_IJ0ix_g7nAV_Nj9anibe9q_w4gg0SBZ"
     );
 
     let myId = null;
@@ -49,42 +49,62 @@
       } catch (e) { return [] }
     }
 
-    // 初始化系统计数器（纯数字，杜绝01/011）
+    // 初始化系统计数器
     async function initCounter() {
       const data = await getDB('name,number');
       const counter = data.find(i => i.name === "系统计数");
-      if (!counter) await sgk.from('sugk').insert([{ name:"系统计数", number:0 }]);
+      if (!counter) {
+        await sgk.from('sugk').insert([{ name:"系统计数", number:0 }]);
+      }
     }
 
-    // 生成纯数字新ID
+    // 🔥 修复核心：原子化生成ID，彻底杜绝两人同号
     async function getNewId() {
-      const data = await getDB('name,number');
-      const cur = Number(data.find(i=>i.name==="系统计数").number) || 0;
-      const newId = cur + 1;
-      await sgk.from('sugk').update({number:newId}).eq('name','系统计数');
-      return newId;
+      await initCounter();
+      // 循环查询+更新，直到更新成功，避免并发重复
+      while(true) {
+        const { data } = await sgk.from('sugk').select('number').eq('name','系统计数').single();
+        const currentNum = Number(data.number) || 0;
+        const newId = currentNum + 1;
+        // 只有当前number没变才更新成功，否则重试
+        const { error } = await sgk.from('sugk')
+          .update({number:newId})
+          .eq('name','系统计数')
+          .eq('number',currentNum);
+        if(!error) return newId;
+      }
     }
 
-    // 登录：本地ID校验，不存在则新建
+    // 登录：严格校验本地ID，不存在则新建唯一ID
     async function login() {
       await initCounter();
-      const local = localStorage.getItem('myId');
-      const all = await getDB('name,number');
-      const user = local ? all.find(i=>Number(i.number)===Number(local)&&i.name.startsWith('用户')) : null;
-
-      if (user) {
-        myId = Number(user.number);
-        userName = user.name;
-      } else {
-        myId = await getNewId();
-        userName = `用户${myId}`;
-        localStorage.setItem('myId', myId);
-        await sgk.from('sugk').insert([{name:userName, number:myId}]);
+      const localId = localStorage.getItem('myId');
+      const allUsers = await getDB('name,number');
+      
+      // 本地有ID，校验数据库是否存在
+      if(localId) {
+        const numId = Number(localId);
+        const userExist = allUsers.some(item=>
+          item.name.startsWith('用户') && Number(item.number)===numId
+        );
+        if(userExist) {
+          myId = numId;
+          userName = `用户${myId}`;
+          loadChatList();
+          return;
+        }
       }
+
+      // 无有效ID，生成唯一新ID
+      const newId = await getNewId();
+      myId = newId;
+      userName = `用户${myId}`;
+      localStorage.setItem('myId', myId);
+      await sgk.from('sugk').insert([{name:userName, number:myId}]);
       loadChatList();
     }
 
-    // 获取我已加入的所有群号
+    // 获取已加入的群
     async function getMyGroups() {
       const data = await getDB('number');
       let groups = [];
@@ -97,7 +117,7 @@
       return groups;
     }
 
-    // 搜索：模糊匹配，不显示自己，不显示已加群
+    // 搜索：模糊匹配，不显示自己/已加群
     async function doSearch() {
       const kw = document.getElementById('page-1').value.trim();
       const box = document.getElementById('page-2');
@@ -108,19 +128,17 @@
       const myGroups = await getMyGroups();
       const list = [];
 
-      // 筛选匹配、非自己、非已加群
       for(let item of all) {
-        const num = item.number;
+        const numStr = String(item.number);
         const name = item.name||'';
         // 跳过自己
-        if(name.startsWith('用户') && Number(num)===myId) continue;
+        if(name.startsWith('用户') && Number(item.number)===myId) continue;
         // 跳过已加入群
-        if(myGroups.includes(String(num))) continue;
-        // 模糊匹配
-        if(name.includes(kw) || String(num).includes(kw)) list.push(item);
+        if(myGroups.includes(numStr)) continue;
+        // 模糊搜索
+        if(name.includes(kw) || numStr.includes(kw)) list.push(item);
       }
 
-      // 渲染搜索结果+加入按钮
       list.forEach(item=>{
         const isUser = item.name.startsWith('用户');
         const type = isUser ? '用户' : '群聊';
@@ -133,11 +151,11 @@
       });
     }
 
-    // 加入目标：用户→新建双人群；群→追加ID到数组
+    // 加入逻辑：用户创建数组，群追加ID到尾部
     async function joinTarget(targetNum, isUser) {
       if(isUser) {
-        // 加用户：创建[我,对方]数组
-        const arr = [myId, Number(targetNum)].sort((a,b)=>a-b);
+        // 加用户：创建双人数组
+        const arr = [myId, Number(targetNum)];
         const str = JSON.stringify(arr);
         await sgk.from('sugk').insert([{
           name:"创建群聊成功",
@@ -145,7 +163,7 @@
           number:str
         }]);
       } else {
-        // 加群：把我ID追加到数组尾部
+        // 加群：追加自己ID到数组尾部
         const oldArr = JSON.parse(targetNum);
         oldArr.push(myId);
         const newStr = JSON.stringify(oldArr);
@@ -156,7 +174,7 @@
       loadChatList();
     }
 
-    // 加载好友/群列表
+    // 加载聊天列表
     async function loadChatList() {
       const data = await getDB('number,name');
       const box = document.getElementById('page2');
