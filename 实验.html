@@ -12,7 +12,7 @@
         padding: 20px;
       }
       /* 聊天页样式 */
-      #page114514{
+      #page3{
         height:300px;
         overflow-y:auto;
       }
@@ -25,10 +25,11 @@
     </div>
     <div class="page" id="page2"></div>
 
-    <textarea placeholder="输入内容"></textarea>
-    <div class="page" id="page114512">发送消息</div>
-    <div class="page" id="page114513" onclick="fys(1,2)">返回好友栏</div>
-    <div class="page" id="page114514"></div>
+    
+    <textarea class="page biku" id="page6" placeholder="输入内容"></textarea>
+    <div class="page" id="page5" onclick="fsdx()">发送消息</div>
+    <div class="page" id="page4" onclick="fys(1,2)">返回好友栏</div>
+    <div class="page" id="page3"></div>
     
     <script>
       window.onerror = function(message, source, lineno, colno, error) {
@@ -59,41 +60,91 @@
               /[.*+?^${}|[\]\\]/g, '\\$&'), 
             'g')) || []).length;
       }
+      let idname=""//用户名称
+      async function fsdx(){
+        //发送消息
+        await cglj('name,text,number')
+        let xiao=document.getElementById('page6')
+        if (xiao.value&&xiaoxi){
+          try{
+            await sgk.from('study').insert([{name:idname,text:xiao.value,number:xiaoxi}])
+            await ltkdq(xiaoxi)
+            xiao.value=""
+          }catch{}
+        }
+      }
       async function qlhz(){
-        //好友栏
+        //好友栏，添加已加入的群聊仅一次
         await cglj('number')
-        let cs=2
+        let box = document.getElementById('page2')
+        let qsg=new Set()
+        box.innerHTML=''
         for (let v of data){
-          cs++
           try{
             let qlx=JSON.parse(v.number)
             let qld=v.number
             if (zifushu(qld,localStorage.getItem('BianHao'))){
-              let box = document.getElementById('page2')
-              box.innerHTML=''
-              box.innerHTML+=`<div style="font-size:15px;width:335px;height:20px;line-height:20px;" class="page biku" onclick="ltkdq(${qld},${cs})" id="page${cs}">${qld}</div>`
+              if (!qsg.has(qld)){
+                qsg.add(qld)
+                box.innerHTML+=`<div style="font-size:15px;width:335px;height:20px;line-height:20px;" class="biku" onclick="ltkdq('${qld}')">${qld}</div>`
+              }
             }
           }catch{}
         }
       }
-      let ltsl=114514
+      let xiaoxi=""//群聊编号寄存
+      async function ltkdq(div){
       //群聊消息加载
-      async function ltkdq(div,num){
-        fys(114514)
         await cglj('name,text,number')
-        let wao = document.getElementById('page114514')
+        let wao = document.getElementById('page3')
         wao.innerHTML=''
         for (let v of data){
           try{
-            if (v.number)===div){
-              ltsl++
-              wao.innerHTML+=`<div style="font-size:15px;width:335px;height:20px;line-height:20px;" class="page biku" id="page${ltsl}">${v.name}：${v.text}</div>`
+            if (v.number===div){
+              wao.innerHTML+=`<div style="font-size:15px;width:335px;height:20px;line-height:20px;" class="biku">${v.name}：${v.text}</div>`
+            }
+          }catch{}
+        }
+        xiaoxi=div
+        fys(3,4,5,6)
+      }
+      async function qlgc(){
+        //检测群聊编号里所有用户的存在，如果用户不存在，就把群聊编号里的不存在的用户的编号删掉
+        //正在开发
+        await cglj('id,number')
+        let yhbh=false
+        for (let v of data){
+          try{
+            //选取群聊
+            let jgc=JSON.parse(v.number)
+            for (let vb of jgc){
+              //遍历选取群聊所有用户编号
+              for (let vc of data){
+                //将选取的用户编号与数据库的所有用户的编号条件判断是否存在
+                try{
+                  if (vb===Number(vc.number)){
+                    //如果选取的用户编号在数据库里存在，就true表示存在
+                    yhbh=true
+                    break
+                  }
+                }catch{}
+              }
+              //如果选取用户不存在，就把选取群聊的编号里的选取用户的编号删除
+              if (yhbh===false){
+                //将数组中的选取用户的编号删除
+                jgc=jgc.filter(item => item !== vb)
+                //删除数据库里的选取群聊里的选取用户的编号
+                await sgk.from('study').update({number:JSON.stringify(jgc)}).eq('id',v.id)
+              }
+              yhbh=false
             }
           }catch{}
         }
       }
       async function hylt(){
       //清除只有一个人的群聊
+        await qlgc() //先把所有群聊的编号里的不存在的用户的编号删掉
+        await cglj('number')
         for (let v of data){
           let na=v.number
           if (!na) continue;
@@ -109,8 +160,10 @@
       }
       async function cglj(kk){
         //刷新本地存储的数据库信息
-        var res = await sgk.from('study').select(kk)
-        data = res.data || []
+        try{
+          var res = await sgk.from('study').select(kk)
+          data = res.data || []
+        }catch{}
       }
       async function zhdl(){
         //账号加减系统
@@ -125,6 +178,7 @@
         await sgk.from('study').delete().lt('time', seco - 86400)
         if (lqhc&&data.some(v=>v.number==lqhc)){
           //逻辑
+          idname="用户"+localStorage.getItem('BianHao')
         }else{
           let a=0
           for (let v of data){
@@ -132,7 +186,9 @@
           }
           localStorage.setItem('BianHao',a+1)
           await sgk.from('study').insert([{name:"用户"+(a+1),number:a+1,time:seco}]).catch(err=>console.log("并发冲突，已自动跳过",err))
+          idname="用户"+(a+1)
         }
+        await hylt()
         await qlhz()
       }
       function fys(...fyss){
