@@ -1,215 +1,278 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <style>
-      .page{
-        display:none;
-        text-align:center;
-      }
-      .biku{
-        border:2px solid black;
-        border-radius:10px;
-        padding: 20px;
-      }
-      /* 聊天页样式 */
-      #page3{
-        height:300px;
-        overflow-y:auto;
-      }
-    </style>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  </head>
-  <body>
-    <div class="page biku" id="page1" style="font-size:55px;width:335px;height:75px;line-height:75px;">🐦Birdie<hr>
-    </div>
-    <div class="page" id="page2"></div>
+<head>
+  <style>
+    .page{
+      display:none;
+      text-align:center;
+      margin: 8px auto;
+      max-width: 360px;
+    }
+    .biku{
+      border:2px solid black;
+      border-radius:10px;
+      padding: 12px;
+      margin: 8px;
+    }
+    #page3{
+      height:300px;
+      overflow-y:auto;
+      border:1px solid #333;
+      border-radius:8px;
+    }
+    #page6{
+      width: 90%;
+      height: 60px;
+    }
+  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <div class="page" id="page-3" onclick="fys(1,2)">返回好友栏</div>
+  <input type="text" placeholder="请输入好友/群聊编号" class="page biku" id="page-1">
+  <div class="page biku" id="page0" onclick="sshy()">搜索好友/群聊</div>
+  <div class="page" id="page-2"></div>
 
-    
-    <textarea class="page biku" id="page6" placeholder="输入内容"></textarea>
-    <div class="page" id="page5" onclick="fsdx()">发送消息</div>
-    <div class="page" id="page4" onclick="fys(1,2)">返回好友栏</div>
-    <div class="page" id="page3"></div>
-    
-    <script>
-      window.onerror = function(message, source, lineno, colno, error) {
-  // message: 错误的文字描述（比如 "Cannot read property 'style' of undefined"）
-  // source: 哪个文件出的错（比如你的 .html 文件名）
-  // lineno: 第几行出错了（最关键！直接告诉你哪一行崩了）
-  // colno: 第几列（一般不用管）
-  // error: 完整的错误对象
+  <div class="page biku" id="page1" style="font-size:40px;padding:10px;">
+    🐦Birdie
+    <hr>
+    <!-- 新增：搜索入口按钮 -->
+    <div style="font-size:16px;margin-top:10px;" onclick="fys(-1,0,-2,-3)" class="biku">打开搜索</div>
+  </div>
+  <div class="page" id="page2"></div>
 
-          alert(`
-              错误信息：${message}
-              出错文件：${source}
-              行号：${lineno}
-          `);
-          return true; // 加了这个，浏览器就不会再偷偷报错了
-      };
-      const {createClient}=supabase
-      const sgk = createClient(
-            "https://tyznbeynnxkweewgnour.supabase.co",
-            "sb_publishable_g0fn9M0IqZpVocj76y0rPw_IDKxkH2C"
-      );
-      let data=[];
-      function zifushu(str, char) {
-        //超级找字符粑粑
-        return (String(str).match(
-          new RegExp(
-            char.replace(
-              /[.*+?^${}|[\]\\]/g, '\\$&'), 
-            'g')) || []).length;
-      }
-      let idname=""//用户名称
-      async function fsdx(){
-        //发送消息
-        await cglj('name,text,number')
-        let xiao=document.getElementById('page6')
-        if (xiao.value&&xiaoxi){
-          try{
-            await sgk.from('study').insert([{name:idname,text:xiao.value,number:xiaoxi}])
-            await ltkdq(xiaoxi)
-            xiao.value=""
-          }catch{}
+  <textarea class="page biku" id="page6" placeholder="输入内容"></textarea>
+  <div class="page biku" id="page5" onclick="fsdx()">发送消息</div>
+  <div class="page biku" id="page4" onclick="fys(1,2)">返回好友栏</div>
+  <div class="page" id="page3"></div>
+
+  <script>
+    window.onerror = function(message, source, lineno) {
+      alert(`错误：${message}\n行号：${lineno}`);
+      return true;
+    };
+
+    const { createClient } = supabase
+    const sgk = createClient(
+      "https://tyznbeynnxkweewgnour.supabase.co",
+      "sb_publishable_g0fn9M0IqZpVocj76y0rPw_IDKxkH2C"
+    );
+
+    let data = [];
+
+    function zifushu(str, char) {
+      return (String(str).match(
+        new RegExp(char.replace(/[.*+?^${}|[\]\\]/g, '\\$&'), 'g')) || []
+      ).length;
+    }
+
+    async function tjhy(div){
+      await hylt()
+      await cglj('id,number')
+      let tyfl = false
+      let blah = ""
+      let blqlid = -1
+
+      for (let v of data){
+        if (v.number === div) {
+          tyfl = true
+          blah = v.number
+          blqlid = v.id
+          break
         }
       }
-      async function qlhz(){
-        //好友栏，添加已加入的群聊仅一次
-        await cglj('number')
-        let box = document.getElementById('page2')
-        let qsg=new Set()
-        box.innerHTML=''
-        for (let v of data){
-          try{
-            let qlx=JSON.parse(v.number)
-            let qld=v.number
-            if (zifushu(qld,localStorage.getItem('BianHao'))){
-              if (!qsg.has(qld)){
-                qsg.add(qld)
-                box.innerHTML+=`<div style="font-size:15px;width:335px;height:20px;line-height:20px;" class="biku" onclick="ltkdq('${qld}')">${qld}</div>`
-              }
-            }
-          }catch{}
-        }
-      }
-      let xiaoxi=""//群聊编号寄存
-      async function ltkdq(div){
-      //群聊消息加载
-        await cglj('name,text,number')
-        let wao = document.getElementById('page3')
-        wao.innerHTML=''
-        for (let v of data){
-          try{
-            if (v.number===div){
-              wao.innerHTML+=`<div style="font-size:15px;width:335px;height:20px;line-height:20px;" class="biku">${v.name}：${v.text}</div>`
-            }
-          }catch{}
-        }
-        xiaoxi=div
-        fys(3,4,5,6)
-      }
-      async function qlgc(){
-        //检测群聊编号里所有用户的存在，如果用户不存在，就把群聊编号里的不存在的用户的编号删掉
-        //正在开发
-        await cglj('id,number')
-        let yhbh=false
-        for (let v of data){
-          try{
-            //选取群聊
-            let jgc=JSON.parse(v.number)
-            for (let vb of jgc){
-              //遍历选取群聊所有用户编号
-              for (let vc of data){
-                //将选取的用户编号与数据库的所有用户的编号条件判断是否存在
-                try{
-                  if (vb===Number(vc.number)){
-                    //如果选取的用户编号在数据库里存在，就true表示存在
-                    yhbh=true
-                    break
-                  }
-                }catch{}
-              }
-              //如果选取用户不存在，就把选取群聊的编号里的选取用户的编号删除
-              if (yhbh===false){
-                //将数组中的选取用户的编号删除
-                jgc=jgc.filter(item => item !== vb)
-                //删除数据库里的选取群聊里的选取用户的编号
-                await sgk.from('study').update({number:JSON.stringify(jgc)}).eq('id',v.id)
-              }
-              yhbh=false
-            }
-          }catch{}
-        }
-      }
-      async function hylt(){
-      //清除只有一个人的群聊
-        await qlgc() //先把所有群聊的编号里的不存在的用户的编号删掉
-        await cglj('number')
-        for (let v of data){
-          let na=v.number
-          if (!na) continue;
-          let zs=false;
-          try{
-            zs=Array.isArray(JSON.parse(na))
-            na=JSON.parse(na)
-            if (zs&&na.length<=1){
-              await sgk.from('study').delete().eq('number',JSON.stringify(na))
-            }
-          }catch{}
-        }
-      }
-      async function cglj(kk){
-        //刷新本地存储的数据库信息
-        try{
-          var res = await sgk.from('study').select(kk)
-          data = res.data || []
-        }catch{}
-      }
-      async function zhdl(){
-        //账号加减系统
-        let seco = Math.floor(Date.now() / 1000)
-        await cglj('number,time')
-        data.length && data.forEach(v=>{
-          let num = parseInt(v.number)
-          if (isNaN(num)) v.number="0";
-        })
-        let lqhc=localStorage.getItem('BianHao')
-        //账号如果超过一天未登录将自动注销
-        await sgk.from('study').delete().lt('time', seco - 86400)
-        if (lqhc&&data.some(v=>v.number==lqhc)){
-          //逻辑
-          idname="用户"+localStorage.getItem('BianHao')
-        }else{
-          let a=0
-          for (let v of data){
-            if (parseInt(v.number)>a) a=parseInt(v.number);
-          }
-          localStorage.setItem('BianHao',a+1)
-          await sgk.from('study').insert([{name:"用户"+(a+1),number:a+1,time:seco}]).catch(err=>console.log("并发冲突，已自动跳过",err))
-          idname="用户"+(a+1)
-        }
-        await hylt()
-        await qlhz()
-      }
-      function fys(...fyss){
-        //翻页
-      // 先隐藏所有.page
-          document.querySelectorAll('.page').forEach(item=>{
-              item.style.display="none"
-          })
-      // 再显示需要的页面
-          fyss.forEach(num=>{
-              let el = document.getElementById('page'+num)
-              if(el) el.style.display="block"
-          })
-      }
-      setInterval(async ()=>{
-        //防止傻缺的登录时间超过一天
-        const my=localStorage.getItem('BianHao')
-        my && await sgk.from('study').update({time:Math.floor(Date.now() / 1000)}).eq('number',my)
-      },1000*60*60*3)
+
+      if (!tyfl) return;
+
       fys(1,2)
-      zhdl()
-    </script>
-  </body>
+      try {
+        let arr = JSON.parse(blah);
+        arr.push(Number(localStorage.getItem('BianHao')));
+        await sgk.from('study').update({ number: JSON.stringify(arr) }).eq('id', blqlid)
+      } catch {
+        let myId = Number(localStorage.getItem('BianHao'));
+        let yh = [Number(blah), myId];
+        await sgk.from('study').insert([{
+          name: "系统",
+          text: "创建群聊成功",
+          number: JSON.stringify(yh)
+        }])
+      }
+      // 修复：加群后强制刷新数据
+      await cglj('number')
+      await qlhz()
+    }
+
+    async function sshy(){
+      let snr = document.getElementById('page-1')
+      let sne = document.getElementById('page-2')
+      let ka = snr.value.trim()
+      sne.innerHTML = ''
+      if (!ka) return
+      await cglj('number')
+      for (let v of data){
+        let d = v.number
+        try {
+          if (zifushu(d, ka) > 0 && zifushu(d, localStorage.getItem('BianHao')) === 0) {
+            sne.innerHTML += `<div class="biku" onclick="tjhy('${d}')">${d}</div>`
+          }
+        } catch{}
+      }
+    }
+
+    let idname = ""
+
+    async function fsdx(){
+      await cglj('name,text,number')
+      let xiao = document.getElementById('page6')
+      if (!xiao.value || !xiaoxi) return;
+      try {
+        await sgk.from('study').insert([{
+          name: idname,
+          text: xiao.value,
+          number: xiaoxi
+        }])
+        await ltkdq(xiaoxi)
+        xiao.value = ""
+      } catch{}
+    }
+
+    async function qlhz(){
+      await cglj('number')
+      let box = document.getElementById('page2')
+      let qsg = new Set()
+      box.innerHTML = ''
+      let myId = localStorage.getItem('BianHao')
+      for (let v of data){
+        try {
+          let qld = v.number
+          JSON.parse(qld)
+          if (zifushu(qld, myId)) {
+            if (!qsg.has(qld)) {
+              qsg.add(qld)
+              box.innerHTML += `<div class="biku" onclick="ltkdq('${qld}')">${qld}</div>`
+            }
+          }
+        } catch{}
+      }
+    }
+
+    let xiaoxi = ""
+
+    async function ltkdq(div){
+      await cglj('name,text,number')
+      let wao = document.getElementById('page3')
+      wao.innerHTML = ''
+      for (let v of data){
+        try {
+          if (v.number === div) {
+            wao.innerHTML += `<div class="biku">${v.name}：${v.text}</div>`
+          }
+        } catch{}
+      }
+      xiaoxi = div
+      fys(3,4,5,6)
+      // 修复：自动滚动到底部
+      wao.scrollTop = wao.scrollHeight
+    }
+
+    async function qlgc(){
+      await cglj('id,number')
+      // 修复：先把所有有效用户id提出来，避免三层循环卡死
+      let userIds = new Set()
+      for (let v of data) {
+        let num = Number(v.number)
+        if (!isNaN(num)) userIds.add(num)
+      }
+
+      for (let v of data){
+        try {
+          let jgc = JSON.parse(v.number)
+          if (!Array.isArray(jgc)) continue
+          // 只保留存在的用户
+          let newArr = jgc.filter(uid => userIds.has(uid))
+          if (newArr.length !== jgc.length) {
+            await sgk.from('study').update({
+              number: JSON.stringify(newArr)
+            }).eq('id', v.id)
+          }
+        } catch{}
+      }
+    }
+
+    async function hylt(){
+      await qlgc()
+      await cglj('id,number')
+      for (let v of data){
+        try {
+          let arr = JSON.parse(v.number)
+          if (Array.isArray(arr) && arr.length <= 1) {
+            await sgk.from('study').delete().eq('id', v.id)
+          }
+        } catch{}
+      }
+    }
+
+    async function cglj(kk){
+      try {
+        let res = await sgk.from('study').select(kk)
+        data = res.data || []
+      } catch {
+        data = []
+      }
+    }
+
+    async function zhdl(){
+      let seco = Math.floor(Date.now() / 1000)
+      await cglj('number,time')
+      await sgk.from('study').delete().lt('time', seco - 86400)
+      let lqhc = localStorage.getItem('BianHao')
+
+      if (lqhc && data.some(v => v.number == lqhc)) {
+        idname = "用户" + lqhc
+      } else {
+        let a = 0
+        for (let v of data){
+          try {
+            let num = parseInt(v.number)
+            if(!isNaN(num) && num > a) a = num
+          } catch{}
+        }
+        localStorage.setItem('BianHao', a+1)
+        await sgk.from('study').insert([{
+          name: "用户"+(a+1),
+          number: a+1,
+          time: seco
+        }]).catch(err=>console.log("注册冲突",err))
+        idname = "用户"+(a+1)
+      }
+      await hylt()
+      await qlhz()
+    }
+
+    function fys(...fyss){
+      document.querySelectorAll('.page').forEach(item=>{
+        item.style.display="none"
+      })
+      fyss.forEach(num=>{
+        let el = document.getElementById('page'+num)
+        if(el) el.style.display="block"
+      })
+    }
+
+    // 每3小时刷新在线时间
+    setInterval(async ()=>{
+      const my = localStorage.getItem('BianHao')
+      if (!my) return
+      await sgk.from('study').update({
+        time: Math.floor(Date.now() / 1000)
+      }).eq('number', my)
+    }, 1000*60*60*3)
+
+    // 初始化
+    fys(1,2)
+    zhdl()
+  </script>
+</body>
 </html>
