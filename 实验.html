@@ -51,7 +51,7 @@
 
     // 你的真实配置
     const sgk = createClient(
-      "https://tyznbeynnxkweewgnour.supabase.co",
+      "https://tyznbeynnxkweewgnour.supabase.co/sugk",
       "sb_publishable_IJ0ix_g7nAV_Nj9anibe9Q_w4gg0SBZ"
     );
 
@@ -65,10 +65,10 @@
       return (String(str).match(new RegExp(escapedChar, 'g')) || []).length;
     }
 
-    // 刷新数据
+    // 刷新数据（已改为sugk表）
     async function cglj(kk) {
       try {
-        const { data: resData, error } = await sgk.from('study').select(kk);
+        const { data: resData, error } = await sgk.from('sugk').select(kk);
         if (error) {
           console.error("数据库查询错误:", error);
           data = [];
@@ -81,7 +81,7 @@
       }
     }
 
-    // 群聊整理
+    // 群聊整理（已改为sugk表）
     async function qlgc() {
       await cglj('id,number');
       const userIds = new Set();
@@ -96,13 +96,13 @@
           if (!Array.isArray(jgc)) continue;
           const newArr = jgc.filter(uid => userIds.has(uid));
           if (newArr.length !== jgc.length) {
-            await sgk.from('study').update({ number: JSON.stringify(newArr) }).eq('id', v.id);
+            await sgk.from('sugk').update({ number: JSON.stringify(newArr) }).eq('id', v.id);
           }
         } catch {}
       }
     }
 
-    // 好友/群聊清理
+    // 好友/群聊清理（已改为sugk表）
     async function hylt() {
       await qlgc();
       await cglj('id,number');
@@ -110,13 +110,13 @@
         try {
           const arr = JSON.parse(v.number);
           if (Array.isArray(arr) && arr.length <= 1) {
-            await sgk.from('study').delete().eq('id', v.id);
+            await sgk.from('sugk').delete().eq('id', v.id);
           }
         } catch {}
       }
     }
 
-    // 添加好友/进群
+    // 添加好友/进群（已改为sugk表）
     async function tjhy(div) {
       await hylt();
       await cglj('id,number');
@@ -136,10 +136,10 @@
       try {
         const arr = JSON.parse(target.number);
         arr.push(myId);
-        await sgk.from('study').update({ number: JSON.stringify(arr) }).eq('id', target.id);
+        await sgk.from('sugk').update({ number: JSON.stringify(arr) }).eq('id', target.id);
       } catch {
         const yh = [Number(target.number), myId];
-        await sgk.from('study').insert([{
+        await sgk.from('sugk').insert([{
           name: "系统",
           text: "创建群聊成功",
           number: JSON.stringify(yh)
@@ -170,7 +170,7 @@
       }
     }
 
-    // 发送消息
+    // 发送消息（已改为sugk表）
     async function fsdx() {
       const xiao = document.getElementById('page6');
       const content = xiao.value.trim();
@@ -178,7 +178,7 @@
       if (!content || !xiaoxi) return;
 
       try {
-        await sgk.from('study').insert([{
+        await sgk.from('sugk').insert([{
           name: idname,
           text: content,
           number: xiaoxi
@@ -231,13 +231,13 @@
       wao.scrollTop = wao.scrollHeight;
     }
 
-    // 登录/注册
+    // 登录/注册（已改为sugk表）
     async function zhdl() {
       const seco = Math.floor(Date.now() / 1000);
       await cglj('number,time');
 
-      // 清理过期用户
-      await sgk.from('study').delete().lt('time', seco - 86400);
+      // 清理过期用户（已改为sugk表）
+      await sgk.from('sugk').delete().lt('time', seco - 86400);
 
       const lqhc = localStorage.getItem('BianHao');
       let exists = false;
@@ -265,7 +265,7 @@
         const newId = maxNum + 1;
         localStorage.setItem('BianHao', newId);
 
-        await sgk.from('study').insert([{
+        await sgk.from('sugk').insert([{
           name: "用户" + newId,
           number: newId,
           time: seco
@@ -289,11 +289,11 @@
       });
     }
 
-    // 在线心跳
+    // 在线心跳（已改为sugk表）
     setInterval(async () => {
       const my = localStorage.getItem('BianHao');
       if (!my) return;
-      await sgk.from('study').update({
+      await sgk.from('sugk').update({
         time: Math.floor(Date.now() / 1000)
       }).eq('number', my);
     }, 1000 * 60 * 60 * 3);
