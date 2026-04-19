@@ -47,20 +47,27 @@
       } catch (e) { return [] }
     }
 
-    // 初始化系统计数器（仅创建1次）
+    // 初始化系统计数器（强制数字，杜绝字符串）
     async function initCounter() {
       const data = await getDB('name,number');
       const hasCounter = data.some(i => i.name === "系统计数");
       if (!hasCounter) {
         await sgk.from('sugk').insert([{ name: "系统计数", number: 0 }]);
+      } else {
+        // 强制转数字，防止字符串
+        const counter = data.find(i => i.name === "系统计数");
+        const num = Number(counter.number) || 0;
+        await sgk.from('sugk').update({ number: num }).eq('name', '系统计数');
       }
     }
 
-    // 生成唯一新ID
+    // 生成唯一新ID（纯数字，不会变成字符串）
     async function getNewId() {
       const data = await getDB('name,number');
       const counter = data.find(i => i.name === "系统计数");
-      const newId = counter.number + 1;
+      // 强制转数字，加1后再转数字，杜绝字符串拼接
+      const currentNum = Number(counter.number) || 0;
+      const newId = Number(currentNum + 1);
       await sgk.from('sugk').update({ number: newId }).eq('name', '系统计数');
       return newId;
     }
@@ -68,14 +75,15 @@
     // 登录核心：本地ID → 查数据库是否存在 → 存在则用，不存在则新建
     async function login() {
       await initCounter();
-      // 1. 取本地存储的ID
-      const localId = localStorage.getItem('user_id');
+      // 1. 取本地存储的ID，强制转数字
+      const localIdStr = localStorage.getItem('user_id');
+      const localId = localIdStr ? Number(localIdStr) : null;
       const allUsers = await getDB('name,number');
 
-      if (localId) {
-        // 2. 查数据库里有没有这个ID的用户
+      if (localId && !isNaN(localId)) {
+        // 2. 查数据库里有没有这个ID的用户，用数字对比
         const userExist = allUsers.some(item => 
-          item.number == localId && item.name.startsWith('用户')
+          Number(item.number) === localId && item.name.startsWith('用户')
         );
         // 3. 存在 → 直接使用
         if (userExist) {
@@ -90,9 +98,10 @@
       const newId = await getNewId();
       myId = newId;
       userName = `用户${myId}`;
-      localStorage.setItem('user_id', myId);
-      // 插入用户记录
-      await sgk.from('sugk').insert([{ name: userName, number: myId }]);
+      // 本地存字符串，对比时再转数字
+      localStorage.setItem('user_id', String(newId));
+      // 插入用户记录，强制number为数字
+      await sgk.from('sugk').insert([{ name: userName, number: newId }]);
       await loadChatList();
     }
 
@@ -103,14 +112,19 @@
       box.innerHTML = '';
       if (!kw) return;
       const users = await getDB('name,number');
-      const target = users.find(u => u.number == kw && u.name.startsWith('用户') && u.number != myId);
+      const target = users.find(u => 
+        Number(u.number) === Number(kw) && 
+        u.name.startsWith('用户') && 
+        Number(u.number) !== Number(myId)
+      );
       if (target) box.innerHTML = `<div class="biku" onclick="addFriend(${target.number})">添加${target.name}</div>`;
     }
 
-    // 创建双人聊天（数组群号）
+    // 创建双人聊天（数组群号，纯数字ID拼接）
     async function addFriend(targetId) {
-      const groupArr = [Number(myId), Number(targetId)].sort();
-      const groupStr = JSON.stringify(groupArr);
+      // 强制转数字，再排序，再生成JSON
+      const arr = [Number(myId), Number(targetId)].sort((a, b) => a - b);
+      const groupStr = JSON.stringify(arr);
       const data = await getDB('number');
       const hasChat = data.some(i => i.number === groupStr);
       if (!hasChat) {
